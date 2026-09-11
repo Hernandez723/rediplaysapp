@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Exclude media cache and download dirs (large, device-specific, can be re-created) -->
+    <exclude
+        domain="file"
+        path="./exoplayer" />
+    <exclude
+        domain="file"
+        path="./download" />
+    <exclude
+        domain="database"
+        path="exoplayer_internal.db" />
+
+    <!--
+        Security: Exclude all sensitive credential storage from Google cloud backups.
+        These files contain auth tokens, API keys, and session data that must NOT
+        be backed up to Google Drive or restored across devices without user consent.
+    -->
+    <!-- DataStore — contains YT cookie, Rediplays token, AI API keys, Last.fm session, etc. -->
+    <exclude
+        domain="file"
+        path="../datastore/" />
+    <!-- Discord token SharedPreferences (AES-encrypted, but the file should still stay local) -->
+    <exclude
+        domain="sharedpref"
+        path="discord_token.xml" />
+</full-backup-content>
