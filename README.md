@@ -1,346 +1,181 @@
 <div align="center">
 
-<img src="https://github.com/MetrolistGroup/Metrolist/blob/main/fastlane/metadata/android/en-US/images/icon.png" alt="Metrolist app icon" width="200" />
+# 🎵 RediPlays
 
-# Metrolist
-
-### YouTube Music client for Android
-
-<br/>
-
-<a href="https://www.blacksmith.sh">
-  <img src="https://github.com/MetrolistGroup/Metrolist/blob/main/assets/blacksmith-powered.png" alt="CI powered by Blacksmith" width="280" />
-</a>
-
-<br/>
-<br/>
-
-[![Latest release](https://img.shields.io/github/v/release/MetrolistGroup/Metrolist?style=for-the-badge&labelColor=0d1117)](https://github.com/MetrolistGroup/Metrolist/releases)
-[![License](https://img.shields.io/github/license/MetrolistGroup/metrolist?style=for-the-badge&labelColor=0d1117)](https://github.com/MetrolistGroup/Metrolist/blob/main/LICENSE)
-[![Downloads](https://img.shields.io/github/downloads/MetrolistGroup/Metrolist/total?style=for-the-badge&labelColor=0d1117)](https://github.com/MetrolistGroup/Metrolist/releases)
+### Plataforma moderna de streaming de música para Android  
+### *Modern Music Streaming Client for Android*
 
 <br/>
 
-[![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white&labelColor=0d1117)](https://dsc.gg/metrolist)
-[![Telegram](https://img.shields.io/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white&labelColor=0d1117)](https://t.me/metrolistapp)
+[![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge&labelColor=0d1117)](LICENSE)
+[![Kotlin](https://img.shields.io/badge/Kotlin-93.8%25-7F52FF.svg?style=for-the-badge&logo=kotlin&logoColor=white&labelColor=0d1117)](https://kotlinlang.org)
+[![GitHub stars](https://img.shields.io/github/stars/Hernandez723/rediplaysapp?style=for-the-badge&labelColor=0d1117)](https://github.com/Hernandez723/rediplaysapp/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/Hernandez723/rediplaysapp?style=for-the-badge&labelColor=0d1117)](https://github.com/Hernandez723/rediplaysapp/network/members)
 
 <br/>
 
-[**Download**](#download-now) · [**Features**](#features) · [**Translate**](#translations) · [**FAQ**](#faq) · [**Support**](#support-the-project)
-
-</div>
-
-> [!WARNING]
-> # MAINTENANCE MODE
-> Metrolist is currently in maintenance mode. This means we will only be fixing bugs and making minor improvements. Please do not submit PRs for new features or major changes, as they will not be accepted.  
-> The app is **NOT** dead, please stay tuned for updates on our discord (found above).
-
-> [!WARNING]
-> **Regional Restriction** - If YouTube Music is unavailable in your region, this app will not work without a **VPN or proxy** connecting to a supported region.
-
----
-
-<div align="center">
-
-<h1><a id="screenshots"></a>Screenshots</h1>
-
-<img src="https://github.com/MetrolistGroup/Metrolist/blob/main/fastlane/metadata/android/en-US/images/screenshots/screenshot_1.png" alt="Home screen" width="30%" />
-<img src="https://github.com/MetrolistGroup/Metrolist/blob/main/fastlane/metadata/android/en-US/images/screenshots/screenshot_2.png" alt="Artist screen" width="30%" />
-<img src="https://github.com/MetrolistGroup/Metrolist/blob/main/fastlane/metadata/android/en-US/images/screenshots/screenshot_3.png" alt="Recognize music screen" width="30%" />
-<img src="https://github.com/MetrolistGroup/Metrolist/blob/main/fastlane/metadata/android/en-US/images/screenshots/screenshot_4.png" alt="Listen together screen" width="30%" />
-<img src="https://github.com/MetrolistGroup/Metrolist/blob/main/fastlane/metadata/android/en-US/images/screenshots/screenshot_5.png" alt="Player screen" width="30%" />
-<img src="https://github.com/MetrolistGroup/Metrolist/blob/main/fastlane/metadata/android/en-US/images/screenshots/screenshot_6.png" alt="Player lyrics screen" width="30%" />
+[🇪🇸 **Español**](#-español) · [🇬🇧 **English**](#-english) · [📥 **Descargar / Download**](#-descargas--downloads) · [🛠️ **Compilación / Build**](#-compilación-y-desarrollo--build--development)
 
 </div>
 
 ---
 
-<div align="center">
+# 🇪🇸 Español
 
-<h1><a id="features"></a>Features</h1>
+**RediPlays** es un cliente de streaming de música y reproducción de audio en tiempo real para Android, diseñado bajo los lineamientos modernos de **Material 3**. Permite disfrutar de tu música favorita con funciones avanzadas como letras sincronizadas, reproducción en segundo plano y modo sin conexión.
+
+### ✨ Características Principales
 
 <table>
   <tr>
     <td width="50%" valign="top">
 
-#### Playback
-- Stream any song or video from YouTube Music
-- Background playback
-- Download & cache for offline use
-- Skip silence
-- Sleep timer
+#### 🎧 Reproducción y Audio
+- **Streaming continuo:** Reproduce cualquier canción o video de YouTube Music.
+- **Segundo plano:** Música sin interrupciones con la pantalla apagada o en otras apps.
+- **Descargas sin conexión:** Guarda y almacena en caché canciones y listas.
+- **Audio avanzado:** Normalización de volumen, ecualizador integrado y control de tono y velocidad.
+- **Temporizador:** Apagado automático programable y salto de silencios.
 
 </td>
     <td width="50%" valign="top">
 
-#### Audio
-- Audio normalization
-- Tempo & pitch control
-- Equalizer
-
-</td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-
-#### Lyrics & Discovery
-- Live synced lyrics
-- AI-powered lyrics translation
-- Personalized quick picks
-- Search songs, albums, artists, videos, and playlists
-
-</td>
-    <td width="50%" valign="top">
-
-#### Library & Account
-- Full library management
-- Local playlists
-- Import playlists
-- Reorder songs in playlist or queue
-- YouTube Music account login
-- Sync songs, artists, albums, and playlists
+#### 📜 Letras y Descubrimiento
+- **Letras sincronizadas en vivo:** Sigue la letra palabra por palabra en tiempo real.
+- **Traducción de letras:** Traducción asistida para canciones en otros idiomas.
+- **Búsqueda completa:** Canciones, artistas, álbumes, videos y listas de reproducción.
+- **Reconocimiento musical:** Identifica canciones al instante.
 
 </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
 
-#### Social
-- Listen together with friends in real-time
+#### 📚 Biblioteca y Listas
+- **Gestión total:** Crea listas locales, importa playlists y organiza tu cola.
+- **Sincronización de cuenta:** Inicia sesión con tu cuenta de YouTube Music.
+- **Escucha en grupo:** Reproducción compartida con amigos en tiempo real.
 
 </td>
     <td width="50%" valign="top">
 
-#### Interface
-- Home screen widget
-- Light / Dark / Black / Dynamic theme modes
-- Dynamic color + 19 preset color palettes
-- Built with Material 3
+#### 🎨 Interfaz y Personalización
+- **Diseño Material 3:** Interfaz moderna y fluida.
+- **Temas:** Claro, Oscuro, Negro Puro (AMOLED) y color dinámico (Material You).
+- **Paletas:** Más de 19 temas de colores preestablecidos.
+- **Widgets:** Control rápido desde la pantalla de inicio.
 
 </td>
   </tr>
 </table>
 
-</div>
-
 ---
 
-<div align="center">
+# 🇬🇧 English
 
-<h1><a id="download-now"></a>Download Now</h1>
+**RediPlays** is a modern music streaming client and real-time audio player for Android, crafted following **Material 3** design principles. Enjoy your favorite music with rich features including live synced lyrics, background playback, and offline listening.
 
-<h2>Stable Release</h2>
+### ✨ Key Features
 
 <table>
   <tr>
-    <th align="center">Obtainium</th>
-    <th align="center">IzzyOnDroid</th>
+    <td width="50%" valign="top">
+
+#### 🎧 Playback & Audio
+- **Seamless Streaming:** Play any track or video from YouTube Music.
+- **Background Playback:** Listen with screen off or while using other apps.
+- **Offline Mode:** Download and cache tracks and playlists.
+- **Advanced Audio:** Audio normalization, built-in equalizer, tempo and pitch controls.
+- **Smart Tools:** Sleep timer and skip silence support.
+
+</td>
+    <td width="50%" valign="top">
+
+#### 📜 Lyrics & Discovery
+- **Live Synced Lyrics:** Real-time word-by-word highlighted lyrics.
+- **Lyrics Translation:** AI-powered translation for multi-language tracks.
+- **Comprehensive Search:** Find tracks, artists, albums, videos, and playlists.
+- **Music Recognition:** Instant song identification.
+
+</td>
   </tr>
   <tr>
-    <td align="center">
-      <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/MetrolistGroup/Metrolist/">
-        <img src="https://github.com/ImranR98/Obtainium/blob/main/assets/graphics/badge_obtainium.png" alt="Download from Obtainium" height="40">
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://apt.izzysoft.de/fdroid/index/apk/com.metrolist.music">
-        <img src="https://gitlab.com/IzzyOnDroid/repo/-/raw/master/assets/IzzyOnDroid.png" alt="Download from IzzyOnDroid" height="60">
-      </a>
-    </td>
-  </tr>
-  <tr>
-    <th align="center">OpenAPK</th>
-    <th align="center">GitHub</th>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://www.openapk.net/metrolist/com.metrolist.music/">
-        <img src="https://www.openapk.net/images/openapk-badge.png" alt="Download from OpenAPK" height="60">
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/MetrolistGroup/Metrolist/releases/latest/download/Metrolist.apk">
-        <img src="https://github.com/machiav3lli/oandbackupx/blob/034b226cea5c1b30eb4f6a6f313e4dadcbb0ece4/badge_github.png" alt="Download from GitHub" height="60">
-      </a>
-    </td>
+    <td width="50%" valign="top">
+
+#### 📚 Library & Playlists
+- **Full Management:** Local playlists, playlist imports, and queue management.
+- **Account Integration:** Login to sync with YouTube Music.
+- **Listen Together:** Real-time social playback with friends.
+
+</td>
+    <td width="50%" valign="top">
+
+#### 🎨 Interface & Customization
+- **Material 3:** Modern, clean, and responsive UI.
+- **Themes:** Light, Dark, Pure Black (AMOLED), and Dynamic Colors (Material You).
+- **Palettes:** 19+ custom accent color themes.
+- **Widgets:** Fast playback control right from your home screen.
+
+</td>
   </tr>
 </table>
 
-<h2>Nightly Build</h2>
+---
 
-<table>
-  <tr>
-    <th align="center">GitHub</th>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="https://nightly.link/MetrolistGroup/Metrolist/workflows/build/main/app-with-Google-Cast.zip">
-        <img src="https://github.com/machiav3lli/oandbackupx/blob/034b226cea5c1b30eb4f6a6f313e4dadcbb0ece4/badge_github.png" alt="Download from GitHub" height="75">
-      </a>
-    </td>
-  </tr>
-</table>
+# 📥 Descargas / Downloads
+
+<div align="center">
+
+Las versiones compiladas y paquetes APK se publican en la sección de **Releases** de este repositorio.
+
+*Compiled APK builds are available in the **Releases** section of this repository.*
+
+<br/>
+
+[![GitHub Releases](https://img.shields.io/badge/Releases-Descargar%20APK%20%2F%20Download-success?style=for-the-badge&logo=github&labelColor=0d1117)](https://github.com/Hernandez723/rediplaysapp/releases)
 
 </div>
 
 ---
 
-<div align="center">
+# 🛠️ Compilación y Desarrollo / Build & Development
 
-<h1><a id="faq"></a>FAQ</h1>
+Para compilar el proyecto localmente / *To build the project locally*:
 
-<h3>Got questions? Check out our <a href="https://metrolist.cc/#faq">FAQ page</a> for answers to the most common ones.</h3>
+```bash
+# Clonar el repositorio / Clone repository
+git clone https://github.com/Hernandez723/rediplaysapp.git
 
-</div>
+# Entrar a la carpeta / Enter project directory
+cd rediplaysapp
 
----
-
-<div align="center">
-
-<h1><a id="translations"></a>Translations</h1>
-
-[![Translation status](https://img.shields.io/weblate/progress/metrolist?style=for-the-badge&labelColor=0d1117)](https://hosted.weblate.org/engage/metrolist/)
-
-<h3>We use Weblate to translate Metrolist. <a href="https://hosted.weblate.org/projects/Metrolist/">Help us bring Metrolist to more people!</a></h3>
-
-<a href="https://hosted.weblate.org/projects/Metrolist/">
-  <img src="https://hosted.weblate.org/widget/Metrolist/horizontal-auto.svg" alt="Translation status" />
-</a>
-
-<h3>Thank you! Every translation makes Metrolist a little more accessible to someone, somewhere in the world.</h3>
-
-</div>
-
----
-
-<div align="center">
-
-<h1><a id="support-the-project"></a>Support the Project</h1>
-
-<h3>Metrolist is free and open-source. If it brings you joy, consider supporting its development!</h3>
-
-#### Monero (XMR)
-
-<img src="https://github.com/MetrolistGroup/Metrolist/blob/main/assets/XMR.png" alt="Monero QR code" width="150" />
-
-```text
-44XjSELSWcgJTZiCKzjpCQWyXhokrH9RqH3rpp35FkSKi57T25hniHWHQNhLeXyFn3DDYqufmfRB1iEtENerZpJc7xJCcqt
+# Compilar APK en modo Debug / Build Debug APK
+./gradlew :app:assembleFossDebug
 ```
 
-#### Buy Me a Coffee
-
-<a href="https://www.buymeacoffee.com/mostafaalagamy">
-  <img src="https://github.com/MetrolistGroup/Metrolist/blob/main/assets/buymeacoffee.png?raw=true" alt="Buy Me a Coffee" width="150" />
-</a>
-
-</div>
+El archivo APK generado se ubicará en:  
+*The generated APK file will be located at:*  
+`app/build/outputs/apk/universalFoss/debug/app-universal-foss-debug.apk`
 
 ---
 
-<div align="center">
+# 🤝 Reconocimientos / Special Thanks & Credits
 
-<h1>Special Thanks</h1>
+RediPlays se basa en excelentes proyectos de código abierto del ecosistema Android:  
+*RediPlays is built upon exceptional open-source work in the Android ecosystem:*
 
-<h3>Metrolist stands on the shoulders of incredible open-source work.</h3>
-
-<h3>Main Inspirations</h3>
-
-<table>
-  <thead>
-    <tr>
-      <th align="center">Project</th>
-      <th align="center">Authors</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td align="center"><strong>InnerTune</strong></td>
-      <td align="center"><a href="https://github.com/z-huang">Zion Huang</a> · <a href="https://github.com/Malopieds">Malopieds</a></td>
-    </tr>
-    <tr>
-      <td align="center"><strong>OuterTune</strong></td>
-      <td align="center"><a href="https://github.com/DD3Boh">Davide Garberi</a> · <a href="https://github.com/mikooomich">Michael Zh</a></td>
-    </tr>
-  </tbody>
-</table>
-
-<h3>Libraries & Integrations</h3>
-
-<table>
-  <thead>
-    <tr>
-      <th align="center">Project</th>
-      <th align="center">Contribution</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td align="center"><a href="https://better-lyrics.boidu.dev"><strong>Better Lyrics</strong></a></td>
-      <td>Time-synced lyrics with word-by-word highlighting & YouTube Music integration</td>
-    </tr>
-    <tr>
-      <td align="center"><a href="https://github.com/MetrolistGroup/metroserver"><strong>metroserver</strong></a></td>
-      <td>Listen-together real-time backend</td>
-    </tr>
-    <tr>
-      <td align="center"><a href="https://github.com/aleksey-saenko/MusicRecognizer"><strong>MusicRecognizer</strong></a></td>
-      <td>Music recognition feature & Shazam API integration</td>
-    </tr>
-    <tr>
-      <td align="center"><a href="https://github.com/ZemerTeam/zemer-cipher"><strong>zemer-cipher</strong></a></td>
-      <td>YouTube cipher deobfuscation and PoToken generation</td>
-    </tr>
-    <tr>
-      <td align="center"><a href="https://www.blacksmith.sh"><strong>Blacksmith</strong></a></td>
-      <td>High-performance GitHub Actions runners powering our CI</td>
-    </tr>
-  </tbody>
-</table>
-
-<br/>
-
-<a href="https://www.blacksmith.sh">
-  <img src="https://github.com/MetrolistGroup/Metrolist/blob/main/assets/blacksmith-powered.png" alt="CI powered by Blacksmith" width="280" />
-</a>
-
-<h3>We also thank the entire open-source community! For every library, tool, and API that powers this project.</h3>
-
-</div>
+- **[Metrolist](https://github.com/MetrolistGroup/Metrolist)** - Proyecto base / Core foundation
+- **[InnerTune](https://github.com/z-huang/InnerTune)** & **[OuterTune](https://github.com/DD3Boh/OuterTune)** - Inspiración en interfaz y arquitectura / Architecture and UI inspiration
+- **[Better Lyrics](https://better-lyrics.boidu.dev/)** - Sincronización de letras / Synced lyrics engine
+- **[MusicRecognizer](https://github.com/aleksey-saenko/MusicRecognizer)** - Reconocimiento de música / Music recognition
+- **[zemer-cipher](https://github.com/ZemerTeam/zemer-cipher)** - Integración de streaming / Streaming integration
 
 ---
 
-<div align="center">
+# ⚖️ Licencia y Descargo / License & Disclaimer
 
-<h1>Contributors</h1>
+Este proyecto está bajo la licencia **GNU General Public License v3.0 (GPL-3.0)**.  
+*This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.*
 
-<h3>This project wouldn't exist without these amazing people!</h3>
-
-<a href="https://github.com/MetrolistGroup/Metrolist/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=MetrolistGroup/Metrolist" alt="Contributors" />
-</a>
-
-</div>
-
----
-
-<div align="center">
-
-<h1>Disclaimer</h1>
-
-This project is **not affiliated with, funded, authorized, endorsed by, or in any way associated** with YouTube, Google LLC, Metrolist Group LLC, or any of their affiliates and subsidiaries.
-
-All trademarks, service marks, and intellectual property rights referenced in this project belong to their respective owners.
-
-</div>
-
----
-
-<div align="center">
-
-<br/>
-
-**Made with ❤️ by [Mo Agamy](https://github.com/mostafaalagamy)**
-
-**This project stands with Palestine 🇵🇸**
-
-</div>
+> **Nota:** Este proyecto no está afiliado, respaldado ni asociado de ninguna manera con YouTube ni Google LLC. Todas las marcas registradas pertenecen a sus respectivos propietarios.  
+> *Disclaimer: This project is not affiliated with, endorsed by, or associated with YouTube or Google LLC. All trademarks belong to their respective owners.*
