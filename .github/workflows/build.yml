@@ -61,6 +61,22 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Prepare Signing Keystore
+        run: |
+          if [ -n "${{ secrets.KEYSTORE }}" ]; then
+            echo "${{ secrets.KEYSTORE }}" | base64 -d > ./app/persistent-debug.keystore
+          elif [ ! -f ./app/persistent-debug.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore ./app/persistent-debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=RediPlays,O=RediPlays,C=US"
+          fi
+
       - name: Build Release APK
         run: ./gradlew --console=plain assemble${{ matrix.variantName }}Release --warning-mode summary
         env:
@@ -144,10 +160,20 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Restore Persistent Keystore
+      - name: Prepare Debug Keystore
         run: |
           if [ -n "${{ secrets.DEBUG_KEYSTORE }}" ]; then
             echo "${{ secrets.DEBUG_KEYSTORE }}" | base64 -d > ./app/persistent-debug.keystore
+          elif [ ! -f ./app/persistent-debug.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore ./app/persistent-debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
           fi
 
       # Lint is intentionally not run in CI: it never gated a merge and added

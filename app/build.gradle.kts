@@ -162,6 +162,10 @@ android {
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+            enableV4Signing = true
         }
         create("workflowDebug") {
             storeFile = workflowDebugKeystoreFile ?: persistentDebugKeystoreFile
@@ -174,6 +178,10 @@ android {
             storePassword = System.getenv("STORE_PASSWORD")
             keyAlias = System.getenv("KEY_ALIAS")
             keyPassword = System.getenv("KEY_PASSWORD")
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+            enableV4Signing = true
         }
     }
 
@@ -189,7 +197,7 @@ android {
                 } else if (persistentDebugKeystoreFile.exists() && persistentDebugKeystoreFile.length() > 0L) {
                     signingConfigs.getByName("persistentDebug")
                 } else {
-                    null
+                    signingConfigs.getByName("debug")
                 }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
