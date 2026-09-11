@@ -64,15 +64,16 @@ jobs:
       - name: Build Release APK
         run: ./gradlew --console=plain assemble${{ matrix.variantName }}Release --warning-mode summary
         env:
-          METROLIST_APPLICATION_ID: com.metrolist.music
-          METROLIST_APP_NAME: Metrolist Nightly
+          METROLIST_APPLICATION_ID: com.rediplays.app
+          METROLIST_APP_NAME: RediPlays
           METROLIST_BUILD_COMMIT: ${{ github.sha }}
           PULL_REQUEST: "false"
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
           LASTFM_SECRET: ${{ secrets.LASTFM_SECRET }}
 
-      - name: Sign APK
+      - name: Sign APK (if secret configured)
+        if: env.HAS_KEYSTORE == 'true'
         uses: ilharp/sign-android-release@v2.0.0
         with:
           releaseDir: app/build/outputs/apk/${{ matrix.variant }}/release/
@@ -81,6 +82,8 @@ jobs:
           keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
           buildToolsVersion: 35.0.0
+        env:
+          HAS_KEYSTORE: ${{ secrets.KEYSTORE != '' }}
 
       - name: Move signed APK
         run: |
@@ -91,7 +94,12 @@ jobs:
           else
             TARGET_NAME="app-universal-release.apk"
           fi
-          find "$OUTPUT_DIR" -name "*-signed.apk" -o -name "*-unsigned-signed.apk" | xargs -I{} mv {} "$OUTPUT_DIR/out/$TARGET_NAME"
+          SIGNED_FILE=$(find "$OUTPUT_DIR" -maxdepth 1 -name "*-signed.apk" -o -name "*-unsigned-signed.apk" | head -n 1)
+          if [ -n "$SIGNED_FILE" ]; then
+            mv "$SIGNED_FILE" "$OUTPUT_DIR/out/$TARGET_NAME"
+          else
+            find "$OUTPUT_DIR" -maxdepth 1 -name "*.apk" | head -n 1 | xargs -I{} mv {} "$OUTPUT_DIR/out/$TARGET_NAME"
+          fi
 
       - name: Upload Signed APK
         uses: actions/upload-artifact@v6
@@ -138,15 +146,17 @@ jobs:
 
       - name: Restore Persistent Keystore
         run: |
-          echo "${{ secrets.DEBUG_KEYSTORE }}" | base64 -d > ./app/persistent-debug.keystore
+          if [ -n "${{ secrets.DEBUG_KEYSTORE }}" ]; then
+            echo "${{ secrets.DEBUG_KEYSTORE }}" | base64 -d > ./app/persistent-debug.keystore
+          fi
 
       # Lint is intentionally not run in CI: it never gated a merge and added
       # several minutes to every build. Run :app:lintGmsRelease locally.
       - name: Build Debug APK
         run: ./gradlew --console=plain assemble${{ matrix.variantName }}Debug --warning-mode summary
         env:
-          METROLIST_APPLICATION_ID: com.metrolist.music
-          METROLIST_APP_NAME: Metrolist Nightly
+          METROLIST_APPLICATION_ID: com.rediplays.app
+          METROLIST_APP_NAME: RediPlays
           METROLIST_BUILD_COMMIT: ${{ github.sha }}
           PULL_REQUEST: "false"
           GITHUB_EVENT_NAME: ${{ github.event_name }}

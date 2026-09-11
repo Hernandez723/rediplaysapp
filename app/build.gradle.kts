@@ -175,12 +175,6 @@ android {
             keyAlias = System.getenv("KEY_ALIAS")
             keyPassword = System.getenv("KEY_PASSWORD")
         }
-        getByName("debug") {
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-            storePassword = "android"
-            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
-        }
     }
 
     buildTypes {
@@ -192,10 +186,10 @@ android {
             signingConfig =
                 if (System.getenv("STORE_PASSWORD") != null) {
                     signingConfigs.getByName("release")
-                } else if (persistentDebugKeystoreFile.exists()) {
+                } else if (persistentDebugKeystoreFile.exists() && persistentDebugKeystoreFile.length() > 0L) {
                     signingConfigs.getByName("persistentDebug")
                 } else {
-                    signingConfigs.getByName("debug")
+                    null
                 }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -205,12 +199,12 @@ android {
         debug {
             isDebuggable = true
             if (appNameOverride == null) {
-                resValue("string", "app_name", "rediplays")
+                resValue("string", "app_name", "RediPlays")
             }
             signingConfig =
-                if (workflowDebugKeystoreFile != null) {
+                if (workflowDebugKeystoreFile != null && workflowDebugKeystoreFile.exists() && workflowDebugKeystoreFile.length() > 0L) {
                     signingConfigs.getByName("workflowDebug")
-                } else if (persistentDebugKeystoreFile.exists()) {
+                } else if (persistentDebugKeystoreFile.exists() && persistentDebugKeystoreFile.length() > 0L) {
                     signingConfigs.getByName("persistentDebug")
                 } else {
                     signingConfigs.getByName("debug")
