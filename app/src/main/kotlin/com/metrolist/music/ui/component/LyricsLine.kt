@@ -210,7 +210,7 @@ internal fun LyricsLine(
                 } else inactiveAlpha
                 
                 val animatedAlpha by animateFloatAsState(targetAlpha, tween(250), label = "lyricsLineAlpha")
-                val lineColor = expressiveAccent.copy(alpha = if (item.isBackground) focusedAlpha else animatedAlpha)
+                val lineColor = Color.White.copy(alpha = if (item.isBackground) focusedAlpha else animatedAlpha)
                 
                 val romanizedTextState by item.romanizedTextFlow.collectAsStateWithLifecycle()
                 val isRomanizedAvailable = romanizedTextState != null
@@ -281,7 +281,7 @@ internal fun LyricsLine(
                         Text(
                             text = it,
                             fontSize = 18.sp,
-                            color = expressiveAccent.copy(alpha = 0.6f),
+                            color = if (isActiveLine) expressiveAccent.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.4f),
                             textAlign = agentTextAlign,
                             fontWeight = FontWeight.Normal,
                             modifier = Modifier.padding(top = 2.dp)
@@ -294,7 +294,7 @@ internal fun LyricsLine(
                     Text(
                         text = it,
                         fontSize = 16.sp,
-                        color = expressiveAccent.copy(alpha = 0.5f),
+                        color = if (isActiveLine) expressiveAccent.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.4f),
                         textAlign = agentTextAlign,
                         fontWeight = FontWeight.Normal,
                         modifier = Modifier.padding(top = 4.dp)

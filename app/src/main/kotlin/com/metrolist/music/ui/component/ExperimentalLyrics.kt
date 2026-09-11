@@ -296,10 +296,8 @@ fun ExperimentalLyrics(
         }
     }
 
-    val expressiveAccent = when (playerBackground) {
-        PlayerBackgroundStyle.DEFAULT -> MaterialTheme.colorScheme.primary
-        PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT -> Color.White
-    }
+    // Musixmatch vibrant yellow accent for synchronized lyrics
+    val expressiveAccent = Color(0xFFFFD13B)
 
     var activeLineIndices by remember { mutableStateOf(emptySet<Int>()) }
     var scrollTargetIndex by rememberSaveable { mutableIntStateOf(-1) }

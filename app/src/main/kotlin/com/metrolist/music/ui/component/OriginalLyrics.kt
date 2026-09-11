@@ -421,18 +421,8 @@ fun OriginalLyrics(
         }
     }
 
-    // Use Material 3 expressive accents and keep glow/text colors unified
-    val expressiveAccent =
-        when (playerBackground) {
-            PlayerBackgroundStyle.DEFAULT -> {
-                MaterialTheme.colorScheme.primary
-            }
-
-            PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT -> {
-                // For blur/gradient backgrounds, always use light colors regardless of theme
-                Color.White
-            }
-        }
+    // Musixmatch vibrant yellow accent for synchronized lyrics
+    val expressiveAccent = Color(0xFFFFD13B)
 
     var currentLineIndex by remember {
         mutableIntStateOf(-1)
@@ -1081,7 +1071,7 @@ fun OriginalLyrics(
                                 if (isActiveLine) {
                                     if (item.isBackground) expressiveAccent.copy(alpha = 0.85f) else expressiveAccent
                                 } else {
-                                    expressiveAccent.copy(alpha = if (item.isBackground) 0.5f else 0.7f)
+                                    Color.White.copy(alpha = if (item.isBackground) 0.35f else 0.5f)
                                 }
                             val alignment = agentTextAlign
 
