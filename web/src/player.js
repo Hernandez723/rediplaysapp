@@ -318,14 +318,82 @@ class AudioPlayer {
     }
   }
 
-  next() {
+  toggleShuffle() {
+    this.isShuffle = !this.isShuffle;
+    this._notifyState();
+    return this.isShuffle;
+  }
+
+  toggleRepeat() {
+    if (this.repeatMode === 'none') {
+      this.repeatMode = 'all';
+    } else if (this.repeatMode === 'all') {
+      this.repeatMode = 'one';
+    } else {
+      this.repeatMode = 'none';
+    }
+    this._notifyState();
+    return this.repeatMode;
+  }
+
+  addToQueue(track) {
+    this.queue.push(track);
+    this._notifyState();
+  }
+
+  removeFromQueue(index) {
+    if (index >= 0 && index < this.queue.length) {
+      this.queue.splice(index, 1);
+      if (this.queueIndex >= index && this.queueIndex > 0) {
+        this.queueIndex--;
+      }
+      this._notifyState();
+    }
+  }
+
+  clearQueue() {
+    if (this.currentTrack) {
+      this.queue = [this.currentTrack];
+      this.queueIndex = 0;
+    } else {
+      this.queue = [];
+      this.queueIndex = -1;
+    }
+    this._notifyState();
+  }
+
+  async next() {
     if (this.queue.length === 0) return;
+
     if (this.isShuffle) {
       this.queueIndex = Math.floor(Math.random() * this.queue.length);
-    } else {
-      this.queueIndex = (this.queueIndex + 1) % this.queue.length;
+      this.playTrack(this.queue[this.queueIndex]);
+      return;
     }
-    this.playTrack(this.queue[this.queueIndex]);
+
+    if (this.queueIndex + 1 < this.queue.length) {
+      this.queueIndex++;
+      this.playTrack(this.queue[this.queueIndex]);
+    } else if (this.repeatMode === 'all') {
+      this.queueIndex = 0;
+      this.playTrack(this.queue[this.queueIndex]);
+    } else {
+      // Autoplay / Radio automática: Cargar canciones similares cuando termina la cola
+      if (this.currentTrack) {
+        const radioTracks = await YTMusic.getRadio(this.currentTrack.id);
+        if (radioTracks.length > 0) {
+          const newTracks = radioTracks.filter(r => !this.queue.some(q => q.id === r.id));
+          if (newTracks.length > 0) {
+            this.queue.push(...newTracks);
+            this.queueIndex++;
+            this.playTrack(this.queue[this.queueIndex]);
+            return;
+          }
+        }
+      }
+      this.isPlaying = false;
+      this._notifyState();
+    }
   }
 
   prev() {
@@ -355,6 +423,7 @@ class AudioPlayer {
       track: this.currentTrack,
       isPlaying: this.isPlaying,
       queue: this.queue,
+      queueIndex: this.queueIndex,
       lyrics: this.lyrics,
       repeatMode: this.repeatMode,
       isShuffle: this.isShuffle

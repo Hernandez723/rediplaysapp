@@ -18,6 +18,7 @@ class App {
   _initDomElements() {
     this.mainView = document.getElementById('view-content');
     this.searchInput = document.getElementById('search-input');
+    this.searchSuggestions = document.getElementById('search-suggestions');
     this.navItems = document.querySelectorAll('.nav-item');
     
     // Player DOM
@@ -28,14 +29,22 @@ class App {
     this.btnPlayPause = document.getElementById('btn-play-pause');
     this.btnPrev = document.getElementById('btn-prev');
     this.btnNext = document.getElementById('btn-next');
+    this.btnShuffle = document.getElementById('btn-shuffle');
+    this.btnRepeat = document.getElementById('btn-repeat');
     this.seekBar = document.getElementById('seek-bar');
     this.currentTimeLabel = document.getElementById('current-time');
     this.totalTimeLabel = document.getElementById('total-time');
     this.volumeSlider = document.getElementById('volume-slider');
+    
+    // Lyrics & Queue DOM
     this.btnLyrics = document.getElementById('btn-lyrics');
     this.lyricsOverlay = document.getElementById('lyrics-overlay');
     this.lyricsContainer = document.getElementById('lyrics-container');
     this.btnCloseLyrics = document.getElementById('btn-close-lyrics');
+    this.btnQueue = document.getElementById('btn-queue');
+    this.queueOverlay = document.getElementById('queue-overlay');
+    this.queueTracksList = document.getElementById('queue-tracks-list');
+    this.btnCloseQueue = document.getElementById('btn-close-queue');
 
     // Sync Modal DOM
     this.syncBadge = document.getElementById('sync-badge');
@@ -56,21 +65,33 @@ class App {
       });
     });
 
-    // Búsqueda
+    // Búsqueda en vivo y autocompletado
     this.searchInput.addEventListener('input', (e) => {
       const q = e.target.value.trim();
       clearTimeout(this.searchDebounceTimer);
       if (q.length >= 2) {
-        this.searchDebounceTimer = setTimeout(() => {
-          this.executeSearch(q);
-        }, 350);
+        this.searchDebounceTimer = setTimeout(async () => {
+          // Obtener sugerencias
+          const suggestions = await YTMusic.getSuggestions(q);
+          this._renderSuggestions(suggestions);
+        }, 200);
+      } else {
+        this.searchSuggestions.classList.remove('active');
       }
     });
 
     this.searchInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         clearTimeout(this.searchDebounceTimer);
+        this.searchSuggestions.classList.remove('active');
         this.executeSearch(this.searchInput.value.trim());
+      }
+    });
+
+    // Cerrar sugerencias al hacer clic fuera
+    document.addEventListener('click', (e) => {
+      if (!this.searchInput.contains(e.target) && !this.searchSuggestions.contains(e.target)) {
+        this.searchSuggestions.classList.remove('active');
       }
     });
 
@@ -88,6 +109,28 @@ class App {
     this.btnPlayPause.addEventListener('click', () => player.togglePlay());
     this.btnNext.addEventListener('click', () => player.next());
     this.btnPrev.addEventListener('click', () => player.prev());
+
+    // Aleatorio y Repetición
+    this.btnShuffle?.addEventListener('click', () => {
+      const isShuffled = player.toggleShuffle();
+      this.btnShuffle.classList.toggle('active', isShuffled);
+      UI.showToast(isShuffled ? 'Modo aleatorio activado' : 'Modo aleatorio desactivado');
+    });
+
+    this.btnRepeat?.addEventListener('click', () => {
+      const mode = player.toggleRepeat();
+      this.btnRepeat.classList.toggle('active', mode !== 'none');
+      if (mode === 'one') {
+        this.btnRepeat.innerHTML = `<svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zm-4-2V9h-1l-2 1v1h1.5v4H13z"/></svg>`;
+        UI.showToast('Repetir una canción');
+      } else if (mode === 'all') {
+        this.btnRepeat.innerHTML = `<svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>`;
+        UI.showToast('Repetir lista completa');
+      } else {
+        this.btnRepeat.innerHTML = `<svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>`;
+        UI.showToast('Repetición desactivada');
+      }
+    });
 
     this.seekBar.addEventListener('input', (e) => {
       const time = parseFloat(e.target.value);
@@ -109,6 +152,16 @@ class App {
 
     this.btnCloseLyrics.addEventListener('click', () => {
       this.lyricsOverlay.classList.remove('active');
+    });
+
+    // Cola de Reproducción
+    this.btnQueue?.addEventListener('click', () => {
+      this.queueOverlay.classList.toggle('active');
+      this._renderQueue();
+    });
+
+    this.btnCloseQueue?.addEventListener('click', () => {
+      this.queueOverlay.classList.remove('active');
     });
 
     // Modal de sincronización
@@ -163,8 +216,11 @@ class App {
           ? `<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`
           : `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
 
-        // Renderizar letras
+        // Renderizar letras y cola si está abierta
         this._renderLyrics(state.lyrics);
+        if (this.queueOverlay.classList.contains('active')) {
+          this._renderQueue();
+        }
       }
     });
 
@@ -520,6 +576,8 @@ class App {
   renderView() {
     if (this.currentView === 'home') {
       this._renderHome();
+    } else if (this.currentView === 'explore') {
+      this._renderExplore();
     } else if (this.currentView === 'favorites') {
       this._renderFavorites();
     } else if (this.currentView === 'playlists') {
@@ -527,6 +585,103 @@ class App {
     } else if (this.currentView === 'history') {
       this._renderHistory();
     }
+  }
+
+  // Renderizar Sugerencias de Autocompletado en el buscador
+  _renderSuggestions(suggestions) {
+    if (!suggestions || suggestions.length === 0) {
+      this.searchSuggestions.classList.remove('active');
+      return;
+    }
+
+    this.searchSuggestions.innerHTML = '';
+    suggestions.slice(0, 6).forEach(s => {
+      const item = document.createElement('div');
+      item.className = 'suggestion-item';
+      item.innerHTML = `
+        <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <span>${s}</span>
+      `;
+      item.addEventListener('click', () => {
+        this.searchInput.value = s;
+        this.searchSuggestions.classList.remove('active');
+        this.executeSearch(s);
+      });
+      this.searchSuggestions.appendChild(item);
+    });
+
+    this.searchSuggestions.classList.add('active');
+  }
+
+  // Renderizar Cola de Reproducción
+  _renderQueue() {
+    if (!this.queueTracksList) return;
+    this.queueTracksList.innerHTML = '';
+
+    if (player.queue.length === 0) {
+      this.queueTracksList.innerHTML = '<p style="color: var(--md-sys-color-on-surface-variant); font-size: 0.9rem;">No hay canciones en la cola.</p>';
+      return;
+    }
+
+    player.queue.forEach((track, idx) => {
+      const isCurrent = idx === player.queueIndex;
+      this.queueTracksList.appendChild(UI.createQueueItemElement(track, idx, isCurrent));
+    });
+  }
+
+  // Renderizar Pantalla de Explorar (Moods & Genres, Charts, New Releases)
+  async _renderExplore() {
+    this.mainView.innerHTML = `
+      <div style="margin-bottom: 28px;">
+        <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 8px;">Explorar</h1>
+        <p style="color: var(--md-sys-color-on-surface-variant);">Estados de ánimo, géneros musicales y éxitos globales de YouTube Music</p>
+      </div>
+
+      <h2 class="section-title">Estados de Ánimo y Géneros</h2>
+      <div id="explore-moods" class="moods-grid"></div>
+
+      <h2 class="section-title">Listas de Éxitos Globales</h2>
+      <div id="explore-charts" class="song-list" style="margin-bottom: 32px;">
+        <div style="color: var(--md-sys-color-on-surface-variant);">Cargando éxitos...</div>
+      </div>
+
+      <h2 class="section-title">Nuevos Lanzamientos</h2>
+      <div id="explore-new" class="song-list">
+        <div style="color: var(--md-sys-color-on-surface-variant);">Cargando lanzamientos...</div>
+      </div>
+    `;
+
+    const exploreData = await YTMusic.getExploreData();
+    const moodsContainer = document.getElementById('explore-moods');
+    if (exploreData && exploreData.moodsAndGenres) {
+      exploreData.moodsAndGenres.forEach(mood => {
+        moodsContainer.appendChild(UI.createMoodCardElement(mood));
+      });
+    }
+
+    // Cargar Listas de Éxitos
+    YTMusic.search(exploreData?.chartsQuery || 'Top 100 Global YouTube Music').then(data => {
+      const chartContainer = document.getElementById('explore-charts');
+      const songs = data.songs || data.results || [];
+      if (chartContainer && songs.length > 0) {
+        chartContainer.innerHTML = '';
+        songs.slice(0, 10).forEach(track => {
+          chartContainer.appendChild(UI.createSongElement(track, songs));
+        });
+      }
+    });
+
+    // Cargar Nuevos Lanzamientos
+    YTMusic.search(exploreData?.newReleasesQuery || 'Nuevos Lanzamientos 2026').then(data => {
+      const newContainer = document.getElementById('explore-new');
+      const songs = data.songs || data.results || [];
+      if (newContainer && songs.length > 0) {
+        newContainer.innerHTML = '';
+        songs.slice(0, 10).forEach(track => {
+          newContainer.appendChild(UI.createSongElement(track, songs));
+        });
+      }
+    });
   }
 
   _renderHome() {

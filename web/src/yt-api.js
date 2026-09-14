@@ -62,6 +62,43 @@ export const YTMusic = {
     return null;
   },
 
+  // Obtener sugerencias de autocompletado en vivo
+  async getSuggestions(query) {
+    if (!query || query.trim().length < 2) return [];
+    try {
+      const res = await fetch(`/api/yt/suggestions?q=${encodeURIComponent(query.trim())}`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.suggestions || [];
+      }
+    } catch (e) {}
+    return [];
+  },
+
+  // Obtener categorías de Explorar (estados de ánimo, géneros, charts)
+  async getExploreData() {
+    try {
+      const res = await fetch('/api/yt/explore');
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {}
+    return null;
+  },
+
+  // Obtener canciones de Radio / Autoplay
+  async getRadio(songId) {
+    if (!songId) return [];
+    try {
+      const res = await fetch(`/api/yt/radio?id=${songId}`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.tracks || [];
+      }
+    } catch (e) {}
+    return [];
+  },
+
   // Obtener letras
   async getLyrics(title, artist, duration = 0) {
     try {

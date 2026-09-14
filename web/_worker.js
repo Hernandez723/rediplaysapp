@@ -205,6 +205,101 @@ export default {
           }), { headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=3600' } });
         }
 
+        // 2b. AUTOCOMPLETADO Y SUGERENCIAS DE BÚSQUEDA (/api/yt/suggestions)
+        if (pathname === '/api/yt/suggestions') {
+          const query = url.searchParams.get('q') || '';
+          if (!query.trim()) {
+            return new Response(JSON.stringify({ suggestions: [] }), { headers: corsHeaders });
+          }
+
+          try {
+            const suggestRes = await fetch(`https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q=${encodeURIComponent(query)}`);
+            if (suggestRes.ok) {
+              const data = await suggestRes.json();
+              const suggestions = Array.isArray(data?.[1]) ? data[1] : [];
+              return new Response(JSON.stringify({ suggestions }), {
+                headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=3600' }
+              });
+            }
+          } catch (e) {}
+
+          return new Response(JSON.stringify({ suggestions: [] }), { headers: corsHeaders });
+        }
+
+        // 2c. EXPLORAR: GÉNEROS, ESTADOS DE ÁNIMO, ÉXITOS Y NOVEDADES (/api/yt/explore)
+        if (pathname === '/api/yt/explore') {
+          const moodsAndGenres = [
+            { id: 'chill', name: 'Relax / Chill', color: '#4a6572', icon: '☕' },
+            { id: 'workout', name: 'Entrenamiento / Gym', color: '#e53935', icon: '⚡' },
+            { id: 'focus', name: 'Concentración / Estudio', color: '#5e35b1', icon: '🎯' },
+            { id: 'party', name: 'Fiesta / Party', color: '#f39c12', icon: '🎉' },
+            { id: 'romance', name: 'Romance / Sentimiento', color: '#d81b60', icon: '❤️' },
+            { id: 'rock', name: 'Rock & Metal', color: '#37474f', icon: '🎸' },
+            { id: 'pop', name: 'Pop Hits', color: '#8e24aa', icon: '✨' },
+            { id: 'urban', name: 'Urbano / Reggaeton / Trap', color: '#00897b', icon: '🔥' },
+            { id: 'hiphop', name: 'Hip-Hop & Rap', color: '#3949ab', icon: '🎤' },
+            { id: 'electronic', name: 'Electrónica / EDM', color: '#00acc1', icon: '🎧' },
+            { id: 'indie', name: 'Indie & Alternativo', color: '#43a047', icon: '🌿' },
+            { id: 'latin', name: 'Latino Clásico y Moderno', color: '#fb8c00', icon: '🌴' }
+          ];
+
+          return new Response(JSON.stringify({
+            moodsAndGenres,
+            chartsQuery: 'Top 100 Global YouTube Music',
+            newReleasesQuery: 'Nuevos Lanzamientos Oficiales 2026'
+          }), { headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=86400' } });
+        }
+
+        // 2d. RADIO / AUTOPLAY DE CANCIÓN (/api/yt/radio)
+        if (pathname === '/api/yt/radio') {
+          const id = url.searchParams.get('id');
+          if (!id) {
+            return new Response(JSON.stringify({ tracks: [] }), { status: 400, headers: corsHeaders });
+          }
+
+          try {
+            const nextRes = await fetch('https://www.youtube.com/youtubei/v1/next', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+              },
+              body: JSON.stringify({
+                context: { client: { clientName: 'WEB', clientVersion: '2.20240101.01.00', hl: 'es', gl: 'US' } },
+                videoId: id
+              })
+            });
+
+            if (nextRes.ok) {
+              const data = await nextRes.json();
+              const tracks = [];
+              const contents = data?.contents?.twoColumnWatchNextResults?.secondaryResults?.secondaryResults?.results || [];
+
+              for (const item of contents) {
+                const compactVideo = item?.compactVideoRenderer;
+                if (compactVideo && compactVideo.videoId && compactVideo.title?.simpleText) {
+                  tracks.push({
+                    id: compactVideo.videoId,
+                    title: compactVideo.title.simpleText,
+                    artist: compactVideo.shortBylineText?.runs?.[0]?.text || 'Artista',
+                    artists: compactVideo.shortBylineText?.runs?.[0]?.text || 'Artista',
+                    thumbnailUrl: compactVideo.thumbnail?.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${compactVideo.videoId}/hqdefault.jpg`,
+                    duration: 0
+                  });
+                }
+              }
+
+              if (tracks.length > 0) {
+                return new Response(JSON.stringify({ tracks }), {
+                  headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=1800' }
+                });
+              }
+            }
+          } catch (e) {}
+
+          return new Response(JSON.stringify({ tracks: [] }), { headers: corsHeaders });
+        }
+
         // 3. STREAM DE AUDIO DIRECTO (/api/yt/stream)
         if (pathname === '/api/yt/stream') {
           const id = url.searchParams.get('id');

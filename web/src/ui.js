@@ -140,6 +140,58 @@ export const UI = {
     modal.classList.add('active');
   },
 
+  // Renderizar tarjeta de Género / Estado de Ánimo (Mood Card)
+  createMoodCardElement(mood) {
+    const div = document.createElement('div');
+    div.className = 'mood-card';
+    div.style.background = `linear-gradient(135deg, ${mood.color} 0%, rgba(20,18,24,0.85) 100%)`;
+    div.innerHTML = `
+      <span>${mood.name}</span>
+      <span class="mood-card-icon">${mood.icon || '🎵'}</span>
+    `;
+
+    div.addEventListener('click', () => {
+      if (window.app && typeof window.app.executeSearch === 'function') {
+        window.app.executeSearch(mood.name.split('/')[0].trim());
+      }
+    });
+
+    return div;
+  },
+
+  // Renderizar elemento de la Cola de Reproducción
+  createQueueItemElement(track, index, isCurrent = false) {
+    const div = document.createElement('div');
+    div.className = `song-card ${isCurrent ? 'active' : ''}`;
+    div.dataset.index = index;
+
+    const artistName = track.artists || track.artist || 'Artista';
+
+    div.innerHTML = `
+      <img src="${track.thumbnailUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100'}" class="song-thumb" alt="${track.title}" loading="lazy"/>
+      <div class="song-info">
+        <div class="song-title">${track.title}</div>
+        <div class="song-artist">${artistName}</div>
+      </div>
+      <button class="btn-icon btn-remove-q" title="Quitar de la cola">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+    `;
+
+    div.addEventListener('click', (e) => {
+      if (e.target.closest('.btn-remove-q')) return;
+      player.queueIndex = index;
+      player.playTrack(track);
+    });
+
+    div.querySelector('.btn-remove-q')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      player.removeFromQueue(index);
+    });
+
+    return div;
+  },
+
   // Mostrar mensaje flotante Toast
   showToast(message) {
     let toast = document.getElementById('toast-msg');
