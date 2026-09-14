@@ -74,6 +74,16 @@ class App {
       }
     });
 
+    // Click en el artista del reproductor inferior
+    this.playerArtist.style.cursor = 'pointer';
+    this.playerArtist.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (player.currentTrack) {
+        const artist = player.currentTrack.artists || player.currentTrack.artist;
+        if (artist) this.openArtistPage(artist);
+      }
+    });
+
     // Controles de Reproducción
     this.btnPlayPause.addEventListener('click', () => player.togglePlay());
     this.btnNext.addEventListener('click', () => player.next());
@@ -144,7 +154,9 @@ class App {
         this.bottomPlayer.style.display = 'flex';
         this.playerThumb.src = state.track.thumbnailUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100';
         this.playerTitle.textContent = state.track.title;
-        this.playerArtist.textContent = state.track.artists || state.track.artist || 'Artista';
+        const artist = state.track.artists || state.track.artist || 'Artista';
+        this.playerArtist.textContent = artist;
+        this.playerArtist.title = `Ver perfil de ${artist}`;
         
         // Icono play/pause
         this.btnPlayPause.innerHTML = state.isPlaying
@@ -205,6 +217,83 @@ class App {
       list.appendChild(UI.createSongElement(track, results));
     });
     this.mainView.appendChild(list);
+  }
+
+  // Abrir y renderizar página completa del artista
+  async openArtistPage(artistName) {
+    if (!artistName) return;
+    this.currentView = 'artist';
+    this.navItems.forEach(item => item.classList.remove('active'));
+
+    this.mainView.innerHTML = `
+      <div style="padding: 40px; text-align: center; color: var(--md-sys-color-on-surface-variant);">
+        Cargando perfil de ${artistName}...
+      </div>
+    `;
+
+    const data = await YTMusic.getArtist(artistName);
+    if (!data || !data.artist) {
+      this.mainView.innerHTML = `
+        <div style="padding: 20px;">
+          <h1 style="font-size: 1.8rem; font-weight: 700;">${artistName}</h1>
+          <p style="color: var(--md-sys-color-on-surface-variant); margin-top: 8px;">No se pudo cargar la información del artista.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const artist = data.artist;
+    const topSongs = data.topSongs || [];
+
+    this.mainView.innerHTML = `
+      <div class="artist-hero">
+        <img src="${artist.thumbnailUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300'}" class="artist-hero-thumb" alt="${artist.name}" />
+        <div class="artist-hero-info">
+          <span style="font-size: 0.85rem; color: var(--md-sys-color-primary); font-weight: 600; text-transform: uppercase;">Artista</span>
+          <h1 class="artist-hero-title">${artist.name}</h1>
+          <p style="color: var(--md-sys-color-on-surface-variant); font-size: 0.95rem;">${artist.description || 'Canciones más escuchadas en Metrolist'}</p>
+          <div class="artist-hero-actions">
+            <button id="btn-artist-play-all" class="btn-action-pill btn-primary">
+              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              <span>Reproducir Todo</span>
+            </button>
+            <button id="btn-artist-shuffle" class="btn-action-pill" style="background: var(--md-sys-color-surface-container-highest); color: var(--md-sys-color-on-surface);">
+              <svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+              <span>Aleatorio</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="section-title">Canciones Populares (${topSongs.length})</h2>
+      <div id="artist-songs-list" class="song-list"></div>
+    `;
+
+    // Botón Reproducir Todo
+    document.getElementById('btn-artist-play-all').addEventListener('click', () => {
+      if (topSongs.length > 0) {
+        player.playTrack(topSongs[0], topSongs);
+      }
+    });
+
+    // Botón Aleatorio
+    document.getElementById('btn-artist-shuffle').addEventListener('click', () => {
+      if (topSongs.length > 0) {
+        const randIdx = Math.floor(Math.random() * topSongs.length);
+        player.isShuffle = true;
+        player.playTrack(topSongs[randIdx], topSongs);
+      }
+    });
+
+    // Lista de canciones
+    const list = document.getElementById('artist-songs-list');
+    if (topSongs.length === 0) {
+      list.innerHTML = '<p style="color: var(--md-sys-color-on-surface-variant);">No hay canciones disponibles para este artista.</p>';
+    } else {
+      topSongs.forEach(track => {
+        list.appendChild(UI.createSongElement(track, topSongs));
+      });
+    }
   }
 
   renderView() {

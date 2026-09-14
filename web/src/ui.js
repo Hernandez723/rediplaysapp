@@ -20,11 +20,13 @@ export const UI = {
     div.className = `song-card ${player.currentTrack?.id === track.id ? 'active' : ''}`;
     div.dataset.id = track.id;
 
+    const artistName = track.artists || track.artist || 'Artista';
+
     div.innerHTML = `
       <img src="${track.thumbnailUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100'}" class="song-thumb" alt="${track.title}" loading="lazy"/>
       <div class="song-info">
         <div class="song-title">${track.title}</div>
-        <div class="song-artist">${track.artists || track.artist || 'Artista'}</div>
+        <div class="song-artist artist-clickable" title="Ver perfil de ${artistName}">${artistName}</div>
       </div>
       <div class="song-actions">
         <button class="btn-icon btn-fav ${isFav ? 'liked' : ''}" title="Me gusta">
@@ -38,9 +40,18 @@ export const UI = {
 
     // Click para reproducir
     div.addEventListener('click', (e) => {
-      if (e.target.closest('.btn-fav') || e.target.closest('.btn-add-pl')) return;
+      if (e.target.closest('.btn-fav') || e.target.closest('.btn-add-pl') || e.target.closest('.artist-clickable')) return;
       player.playTrack(track, playlistContext || [track]);
       sync.addHistory(track);
+    });
+
+    // Click en el artista
+    const artistElem = div.querySelector('.artist-clickable');
+    artistElem.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (window.app && typeof window.app.openArtistPage === 'function') {
+        window.app.openArtistPage(artistName);
+      }
     });
 
     // Botón de favorito

@@ -1,5 +1,5 @@
 // Cloudflare Unified Worker & Pages Handler (_worker.js)
-// Resuelve audio directo sin intermediarios caídos y sirve los archivos estáticos
+// Enruta APIs de música, búsqueda, artistas, streams y sirve archivos estáticos
 
 export default {
   async fetch(request, env) {
@@ -128,14 +128,84 @@ export default {
           return new Response(JSON.stringify({ results: [] }), { headers: corsHeaders });
         }
 
-        // 2. STREAM DE AUDIO DIRECTO (/api/yt/stream)
+        // 2. DETALLES Y CANCIONES DE ARTISTA (/api/yt/artist)
+        if (pathname === '/api/yt/artist') {
+          const artistName = url.searchParams.get('name') || '';
+          if (!artistName.trim()) {
+            return new Response(JSON.stringify({ error: 'Nombre de artista requerido' }), { status: 400, headers: corsHeaders });
+          }
+
+          // Buscar canciones más escuchadas del artista
+          const topQuery = `${artistName} canciones`;
+          let topSongs = [];
+
+          try {
+            const ytMusicRes = await fetch('https://music.youtube.com/youtubei/v1/search', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Origin': 'https://music.youtube.com',
+                'Referer': 'https://music.youtube.com/',
+                'X-YouTube-Client-Name': '67',
+                'X-YouTube-Client-Version': '1.20240101.01.00'
+              },
+              body: JSON.stringify({
+                context: {
+                  client: {
+                    clientName: 'WEB_REMIX',
+                    clientVersion: '1.20240101.01.00',
+                    hl: 'es',
+                    gl: 'US'
+                  }
+                },
+                query: topQuery
+              })
+            });
+
+            if (ytMusicRes.ok) {
+              const data = await ytMusicRes.json();
+              topSongs = parseYouTubeMusicSearchResults(data);
+            }
+          } catch (e) {}
+
+          if (topSongs.length === 0) {
+            try {
+              const ytWebRes = await fetch('https://www.youtube.com/youtubei/v1/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+                body: JSON.stringify({
+                  context: { client: { clientName: 'WEB', clientVersion: '2.20240101.01.00', hl: 'es', gl: 'US' } },
+                  query: artistName + ' canciones audio'
+                })
+              });
+              if (ytWebRes.ok) {
+                const data = await ytWebRes.json();
+                topSongs = parseStandardYouTubeSearchResults(data);
+              }
+            } catch (err) {}
+          }
+
+          const heroThumb = topSongs[0]?.thumbnailUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500';
+
+          return new Response(JSON.stringify({
+            artist: {
+              name: artistName,
+              thumbnailUrl: heroThumb,
+              description: `Artista popular en Metrolist y YouTube Music.`
+            },
+            topSongs: topSongs.slice(0, 20)
+          }), { headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=3600' } });
+        }
+
+        // 3. STREAM DE AUDIO DIRECTO (/api/yt/stream)
         if (pathname === '/api/yt/stream') {
           const id = url.searchParams.get('id');
           if (!id) {
             return new Response(JSON.stringify({ error: 'ID requerido' }), { status: 400, headers: corsHeaders });
           }
 
-          // A) YouTube TVHTML5_SIMPLY_EMBEDDED_PLAYER (Directo de YouTube sin bloqueos de IP)
+          // A) YouTube TVHTML5_SIMPLY_EMBEDDED_PLAYER (Directo de YouTube)
           try {
             const ytPlayerRes = await fetch('https://www.youtube.com/youtubei/v1/player', {
               method: 'POST',
@@ -188,87 +258,12 @@ export default {
                 }
               }
             }
-          } catch (e) {
-            console.warn('TVHTML5 player fetch failed:', e);
-          }
-
-          // B) YouTube ANDROID_VR Client
-          try {
-            const vrPlayerRes = await fetch('https://www.youtube.com/youtubei/v1/player', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0'
-              },
-              body: JSON.stringify({
-                context: {
-                  client: {
-                    clientName: 'ANDROID_VR',
-                    clientVersion: '1.59.19',
-                    deviceModel: 'Quest 3',
-                    hl: 'es',
-                    gl: 'US'
-                  }
-                },
-                videoId: id
-              })
-            });
-
-            if (vrPlayerRes.ok) {
-              const playerData = await vrPlayerRes.json();
-              const formats = playerData?.streamingData?.adaptiveFormats || [];
-              const audioFormat = formats.find(f => f.url && f.mimeType?.startsWith('audio/'));
-              if (audioFormat && audioFormat.url) {
-                return new Response(JSON.stringify({
-                  url: `/api/yt/proxy?url=${encodeURIComponent(audioFormat.url)}`,
-                  directUrl: audioFormat.url,
-                  bitrate: audioFormat.bitrate
-                }), { headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=3600' } });
-              }
-            }
           } catch (e) {}
-
-          // C) Instancias Invidious activas
-          const invidiousInstances = [
-            `https://yt.artemislena.eu/api/v1/videos/${id}`,
-            `https://invidious.flokinet.to/api/v1/videos/${id}`,
-            `https://iv.ggtyler.dev/api/v1/videos/${id}`,
-            `https://invidious.protokolla.fi/api/v1/videos/${id}`
-          ];
-
-          for (const api of invidiousInstances) {
-            try {
-              const controller = new AbortController();
-              const timeout = setTimeout(() => controller.abort(), 3000);
-              const res = await fetch(api, { signal: controller.signal, headers: { 'User-Agent': 'Mozilla/5.0' } });
-              clearTimeout(timeout);
-
-              if (res.ok) {
-                const data = await res.json();
-                if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
-                  const audioFormats = data.adaptiveFormats.filter(f => f.url && (f.type?.startsWith('audio/') || f.mimeType?.startsWith('audio/')));
-                  if (audioFormats.length > 0) {
-                    const best = audioFormats.sort((a, b) => (parseInt(b.bitrate) || 0) - (parseInt(a.bitrate) || 0))[0];
-                    if (best && best.url) {
-                      return new Response(JSON.stringify({
-                        url: `/api/yt/proxy?url=${encodeURIComponent(best.url)}`,
-                        directUrl: best.url,
-                        bitrate: best.bitrate,
-                        mimeType: best.type || best.mimeType,
-                        title: data.title,
-                        artist: data.author
-                      }), { headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=3600' } });
-                    }
-                  }
-                }
-              }
-            } catch (err) {}
-          }
 
           return new Response(JSON.stringify({ error: 'No se pudo resolver el stream de audio' }), { status: 502, headers: corsHeaders });
         }
 
-        // 3. LETRAS (/api/yt/lyrics)
+        // 4. LETRAS (/api/yt/lyrics)
         if (pathname === '/api/yt/lyrics') {
           const title = url.searchParams.get('title') || '';
           const artist = url.searchParams.get('artist') || '';
@@ -315,7 +310,7 @@ export default {
           return new Response(JSON.stringify({ plainLyrics: '', syncedLyrics: '' }), { headers: corsHeaders });
         }
 
-        // 4. AUTENTICACIÓN / VINCULACIÓN (/api/auth/pair)
+        // 5. AUTENTICACIÓN / VINCULACIÓN (/api/auth/pair)
         if (pathname === '/api/auth/pair') {
           const body = await request.json().catch(() => ({}));
           const { action, pairingCode, userId } = body;
@@ -370,7 +365,7 @@ export default {
           }
         }
 
-        // 5. SINCRONIZACIÓN PUSH (/api/sync/push)
+        // 6. SINCRONIZACIÓN PUSH (/api/sync/push)
         if (pathname === '/api/sync/push') {
           const body = await request.json().catch(() => ({}));
           const userId = request.headers.get('X-User-Id') || body.userId;
@@ -472,7 +467,7 @@ export default {
           return new Response(JSON.stringify({ success: true, syncedAt: now }), { headers: corsHeaders });
         }
 
-        // 6. SINCRONIZACIÓN PULL (/api/sync/pull)
+        // 7. SINCRONIZACIÓN PULL (/api/sync/pull)
         if (pathname === '/api/sync/pull') {
           const userId = request.headers.get('X-User-Id') || url.searchParams.get('userId');
           const since = parseInt(url.searchParams.get('since') || '0', 10);

@@ -1,7 +1,7 @@
 // Metrolist Web - YouTube Music API Client
 
 export const YTMusic = {
-  // Buscar canciones (siempre a través del Worker en el Edge)
+  // Buscar canciones
   async search(query) {
     if (!query || !query.trim()) return [];
 
@@ -18,6 +18,22 @@ export const YTMusic = {
     }
 
     return [];
+  },
+
+  // Obtener detalles, canciones y perfil de un artista
+  async getArtist(artistName) {
+    if (!artistName || !artistName.trim()) return null;
+
+    try {
+      const res = await fetch(`/api/yt/artist?name=${encodeURIComponent(artistName.trim())}`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Error al consultar /api/yt/artist:', e);
+    }
+
+    return null;
   },
 
   // Obtener URL del flujo de audio

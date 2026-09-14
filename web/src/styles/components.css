@@ -51,19 +51,6 @@
   flex-shrink: 0;
 }
 
-.song-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.song-title {
-  font-weight: 600;
-  font-size: 0.95rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .song-artist {
   font-size: 0.8rem;
   color: var(--md-sys-color-on-surface-variant);
@@ -71,6 +58,77 @@
   overflow: hidden;
   text-overflow: ellipsis;
   margin-top: 2px;
+}
+
+.artist-clickable {
+  cursor: pointer;
+  display: inline-block;
+  transition: color 0.15s ease, text-decoration 0.15s ease;
+}
+
+.artist-clickable:hover {
+  color: var(--md-sys-color-primary);
+  text-decoration: underline;
+}
+
+/* Artist Hero Screen */
+.artist-hero {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 32px;
+  background: linear-gradient(180deg, var(--md-sys-color-surface-container-high) 0%, var(--md-sys-color-surface-container-lowest) 100%);
+  border-radius: var(--radius-xl);
+  margin-bottom: 32px;
+}
+
+.artist-hero-thumb {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+
+.artist-hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.artist-hero-title {
+  font-size: 2.2rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.artist-hero-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.btn-action-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: var(--radius-full);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.btn-action-pill:hover {
+  transform: scale(1.04);
+}
+
+.btn-action-pill svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
 }
 
 .song-actions {
