@@ -195,28 +195,249 @@ class App {
 
   async executeSearch(query) {
     if (!query) return;
+    this.currentSearchQuery = query;
+    this.currentSearchFilter = 'all';
     this.navigateTo('search');
     this.mainView.innerHTML = `
       <h2 class="section-title">Resultados para "${query}"</h2>
-      <div style="color: var(--md-sys-color-on-surface-variant);">Buscando en YouTube Music...</div>
+      <div style="color: var(--md-sys-color-on-surface-variant); padding: 20px 0;">Buscando en YouTube Music...</div>
     `;
 
-    const results = await YTMusic.search(query);
-    if (results.length === 0) {
+    const data = await YTMusic.search(query);
+    this.searchData = data;
+    this._renderSearchResults();
+  }
+
+  _renderSearchResults() {
+    const query = this.currentSearchQuery || '';
+    const data = this.searchData || { songs: [], artists: [], albums: [], playlists: [], topResult: null, results: [] };
+    const songs = data.songs || data.results || [];
+    const artists = data.artists || [];
+    const albums = data.albums || [];
+    const playlists = data.playlists || [];
+    const topResult = data.topResult;
+
+    const totalResults = songs.length + artists.length + albums.length + playlists.length;
+    if (totalResults === 0 && !topResult) {
       this.mainView.innerHTML = `
         <h2 class="section-title">Resultados para "${query}"</h2>
-        <div style="color: var(--md-sys-color-on-surface-variant);">No se encontraron resultados.</div>
+        <div style="color: var(--md-sys-color-on-surface-variant); padding: 24px 0;">No se encontraron resultados para "${query}".</div>
       `;
       return;
     }
 
-    this.mainView.innerHTML = `<h2 class="section-title">Resultados para "${query}"</h2>`;
-    const list = document.createElement('div');
-    list.className = 'song-list';
-    results.forEach(track => {
-      list.appendChild(UI.createSongElement(track, results));
+    this.mainView.innerHTML = `
+      <div style="margin-bottom: 20px;">
+        <h2 class="section-title" style="margin-bottom: 16px;">Resultados para "${query}"</h2>
+        
+        <!-- Filter Chips (Igual a la App Android) -->
+        <div class="filter-chips">
+          <button class="chip ${this.currentSearchFilter === 'all' ? 'active' : ''}" data-filter="all">Todos</button>
+          <button class="chip ${this.currentSearchFilter === 'songs' ? 'active' : ''}" data-filter="songs">Canciones ${songs.length ? `(${songs.length})` : ''}</button>
+          <button class="chip ${this.currentSearchFilter === 'artists' ? 'active' : ''}" data-filter="artists">Artistas ${artists.length ? `(${artists.length})` : ''}</button>
+          <button class="chip ${this.currentSearchFilter === 'albums' ? 'active' : ''}" data-filter="albums">Álbumes ${albums.length ? `(${albums.length})` : ''}</button>
+          <button class="chip ${this.currentSearchFilter === 'playlists' ? 'active' : ''}" data-filter="playlists">Playlists ${playlists.length ? `(${playlists.length})` : ''}</button>
+        </div>
+      </div>
+
+      <div id="search-content-body"></div>
+    `;
+
+    // Bind Filter Chips click
+    this.mainView.querySelectorAll('.chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        this.currentSearchFilter = chip.dataset.filter;
+        this._renderSearchResults();
+      });
     });
-    this.mainView.appendChild(list);
+
+    const body = document.getElementById('search-content-body');
+
+    // MODO: TODOS (Vista General Agrupada)
+    if (this.currentSearchFilter === 'all') {
+      // 1. Mejor Resultado (si existe)
+      if (topResult) {
+        const topDiv = document.createElement('div');
+        topDiv.style.cssText = 'margin-bottom: 28px;';
+        topDiv.innerHTML = `
+          <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px; color: var(--md-sys-color-primary);">Mejor Resultado</h3>
+          <div class="song-card" style="padding: 16px; background: linear-gradient(135deg, var(--md-sys-color-surface-container-high) 0%, var(--md-sys-color-surface-container) 100%);">
+            <img src="${topResult.thumbnailUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=120'}" style="width: 64px; height: 64px; border-radius: var(--radius-md); object-fit: cover;" alt="${topResult.title}" />
+            <div class="song-info">
+              <span style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--md-sys-color-primary); font-weight: 700;">${topResult.type || 'Destacado'}</span>
+              <div class="song-title" style="font-size: 1.1rem; font-weight: 700; margin-top: 2px;">${topResult.title}</div>
+              <div class="song-artist artist-clickable" style="font-size: 0.85rem; margin-top: 4px;">${topResult.artist}</div>
+            </div>
+            ${topResult.id ? `
+            <button class="btn-primary" style="padding: 8px 18px; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
+              <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;"><path d="M8 5v14l11-7z"/></svg>
+              <span>Reproducir</span>
+            </button>` : ''}
+          </div>
+        `;
+
+        if (topResult.id) {
+          topDiv.querySelector('.btn-primary')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            player.playTrack({
+              id: topResult.id,
+              title: topResult.title,
+              artist: topResult.artist,
+              artists: topResult.artist,
+              thumbnailUrl: topResult.thumbnailUrl
+            }, songs);
+          });
+        }
+
+        topDiv.querySelector('.artist-clickable')?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.openArtistPage(topResult.artist);
+        });
+
+        body.appendChild(topDiv);
+      }
+
+      // 2. Artistas (Carrusel Horizontal)
+      if (artists.length > 0) {
+        const artSec = document.createElement('div');
+        artSec.innerHTML = `
+          <div class="section-title">
+            <span>Artistas</span>
+            <button class="btn-action-pill" style="background: transparent; color: var(--md-sys-color-primary); font-size: 0.85rem; padding: 4px 8px;">Ver todos</button>
+          </div>
+          <div class="horizontal-scroll-row"></div>
+        `;
+        const row = artSec.querySelector('.horizontal-scroll-row');
+        artists.slice(0, 10).forEach(artist => {
+          row.appendChild(UI.createArtistCardElement(artist));
+        });
+        artSec.querySelector('button')?.addEventListener('click', () => {
+          this.currentSearchFilter = 'artists';
+          this._renderSearchResults();
+        });
+        body.appendChild(artSec);
+      }
+
+      // 3. Canciones (Lista)
+      if (songs.length > 0) {
+        const songSec = document.createElement('div');
+        songSec.style.cssText = 'margin-bottom: 28px;';
+        songSec.innerHTML = `
+          <div class="section-title">
+            <span>Canciones</span>
+            <button class="btn-action-pill" style="background: transparent; color: var(--md-sys-color-primary); font-size: 0.85rem; padding: 4px 8px;">Ver todas</button>
+          </div>
+          <div class="song-list"></div>
+        `;
+        const list = songSec.querySelector('.song-list');
+        songs.slice(0, 6).forEach(track => {
+          list.appendChild(UI.createSongElement(track, songs));
+        });
+        songSec.querySelector('button')?.addEventListener('click', () => {
+          this.currentSearchFilter = 'songs';
+          this._renderSearchResults();
+        });
+        body.appendChild(songSec);
+      }
+
+      // 4. Álbumes (Carrusel Horizontal)
+      if (albums.length > 0) {
+        const albSec = document.createElement('div');
+        albSec.innerHTML = `
+          <div class="section-title">
+            <span>Álbumes</span>
+            <button class="btn-action-pill" style="background: transparent; color: var(--md-sys-color-primary); font-size: 0.85rem; padding: 4px 8px;">Ver todos</button>
+          </div>
+          <div class="horizontal-scroll-row"></div>
+        `;
+        const row = albSec.querySelector('.horizontal-scroll-row');
+        albums.slice(0, 10).forEach(album => {
+          row.appendChild(UI.createMediaCardElement(album, 'album'));
+        });
+        albSec.querySelector('button')?.addEventListener('click', () => {
+          this.currentSearchFilter = 'albums';
+          this._renderSearchResults();
+        });
+        body.appendChild(albSec);
+      }
+
+      // 5. Playlists (Carrusel Horizontal)
+      if (playlists.length > 0) {
+        const plSec = document.createElement('div');
+        plSec.innerHTML = `
+          <div class="section-title">
+            <span>Listas de Reproducción</span>
+            <button class="btn-action-pill" style="background: transparent; color: var(--md-sys-color-primary); font-size: 0.85rem; padding: 4px 8px;">Ver todas</button>
+          </div>
+          <div class="horizontal-scroll-row"></div>
+        `;
+        const row = plSec.querySelector('.horizontal-scroll-row');
+        playlists.slice(0, 10).forEach(pl => {
+          row.appendChild(UI.createMediaCardElement(pl, 'playlist'));
+        });
+        plSec.querySelector('button')?.addEventListener('click', () => {
+          this.currentSearchFilter = 'playlists';
+          this._renderSearchResults();
+        });
+        body.appendChild(plSec);
+      }
+    }
+
+    // MODO: CANCIONES (Lista completa)
+    else if (this.currentSearchFilter === 'songs') {
+      if (songs.length === 0) {
+        body.innerHTML = '<p style="color: var(--md-sys-color-on-surface-variant);">No se encontraron canciones.</p>';
+      } else {
+        const list = document.createElement('div');
+        list.className = 'song-list';
+        songs.forEach(track => {
+          list.appendChild(UI.createSongElement(track, songs));
+        });
+        body.appendChild(list);
+      }
+    }
+
+    // MODO: ARTISTAS (Grid completo)
+    else if (this.currentSearchFilter === 'artists') {
+      if (artists.length === 0) {
+        body.innerHTML = '<p style="color: var(--md-sys-color-on-surface-variant);">No se encontraron artistas.</p>';
+      } else {
+        const grid = document.createElement('div');
+        grid.className = 'grid-cards';
+        artists.forEach(artist => {
+          grid.appendChild(UI.createArtistCardElement(artist));
+        });
+        body.appendChild(grid);
+      }
+    }
+
+    // MODO: ÁLBUMES (Grid completo)
+    else if (this.currentSearchFilter === 'albums') {
+      if (albums.length === 0) {
+        body.innerHTML = '<p style="color: var(--md-sys-color-on-surface-variant);">No se encontraron álbumes.</p>';
+      } else {
+        const grid = document.createElement('div');
+        grid.className = 'grid-cards';
+        albums.forEach(album => {
+          grid.appendChild(UI.createMediaCardElement(album, 'album'));
+        });
+        body.appendChild(grid);
+      }
+    }
+
+    // MODO: PLAYLISTS (Grid completo)
+    else if (this.currentSearchFilter === 'playlists') {
+      if (playlists.length === 0) {
+        body.innerHTML = '<p style="color: var(--md-sys-color-on-surface-variant);">No se encontraron listas de reproducción.</p>';
+      } else {
+        const grid = document.createElement('div');
+        grid.className = 'grid-cards';
+        playlists.forEach(pl => {
+          grid.appendChild(UI.createMediaCardElement(pl, 'playlist'));
+        });
+        body.appendChild(grid);
+      }
+    }
   }
 
   // Abrir y renderizar página completa del artista
@@ -332,7 +553,8 @@ class App {
     }
 
     // Cargar tendencias recomendadas
-    YTMusic.search('Trending Hits').then(results => {
+    YTMusic.search('Trending Hits').then(data => {
+      const results = data.songs || data.results || [];
       const trendContainer = document.getElementById('home-trending');
       if (trendContainer && results.length > 0) {
         trendContainer.innerHTML = '';

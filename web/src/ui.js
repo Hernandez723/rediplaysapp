@@ -71,6 +71,45 @@ export const UI = {
     return div;
   },
 
+  // Renderizar tarjeta circular de artista
+  createArtistCardElement(artist) {
+    const div = document.createElement('div');
+    div.className = 'artist-card';
+    div.innerHTML = `
+      <img src="${artist.thumbnailUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200'}" class="artist-card-thumb" alt="${artist.name}" loading="lazy"/>
+      <div class="artist-card-name">${artist.name}</div>
+      <div class="artist-card-sub">${artist.subscribers || 'Artista'}</div>
+    `;
+
+    div.addEventListener('click', () => {
+      if (window.app && typeof window.app.openArtistPage === 'function') {
+        window.app.openArtistPage(artist.name);
+      }
+    });
+
+    return div;
+  },
+
+  // Renderizar tarjeta de Álbum o Playlist
+  createMediaCardElement(item, type = 'album') {
+    const div = document.createElement('div');
+    div.className = 'media-card';
+    div.innerHTML = `
+      <img src="${item.thumbnailUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300'}" class="media-card-thumb" alt="${item.title}" loading="lazy"/>
+      <div class="media-card-title">${item.title}</div>
+      <div class="media-card-sub">${item.artist || item.author || (type === 'album' ? 'Álbum' : 'Playlist')} ${item.year ? '• ' + item.year : (item.trackCount ? '• ' + item.trackCount : '')}</div>
+    `;
+
+    div.addEventListener('click', () => {
+      if (window.app && typeof window.app.executeSearch === 'function') {
+        // Cargar canciones de este álbum/playlist
+        window.app.executeSearch(`${item.title} ${item.artist || ''}`);
+      }
+    });
+
+    return div;
+  },
+
   // Modal para añadir canción a playlist
   openAddToPlaylistModal(track) {
     const modal = document.getElementById('playlist-modal');

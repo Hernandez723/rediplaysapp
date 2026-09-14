@@ -1,23 +1,32 @@
 // Metrolist Web - YouTube Music API Client
 
 export const YTMusic = {
-  // Buscar canciones
+  // Buscar contenido categorizado (canciones, artistas, álbumes, playlists)
   async search(query) {
-    if (!query || !query.trim()) return [];
+    if (!query || !query.trim()) {
+      return { songs: [], artists: [], albums: [], playlists: [], topResult: null, results: [] };
+    }
 
     try {
       const res = await fetch(`/api/yt/search?q=${encodeURIComponent(query.trim())}`);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data.results)) {
-          return data.results;
+        if (data && typeof data === 'object') {
+          return {
+            songs: data.songs || data.results || [],
+            artists: data.artists || [],
+            albums: data.albums || [],
+            playlists: data.playlists || [],
+            topResult: data.topResult || null,
+            results: data.results || data.songs || []
+          };
         }
       }
     } catch (e) {
       console.warn('Error al consultar /api/yt/search:', e);
     }
 
-    return [];
+    return { songs: [], artists: [], albums: [], playlists: [], topResult: null, results: [] };
   },
 
   // Obtener detalles, canciones y perfil de un artista

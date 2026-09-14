@@ -1,5 +1,5 @@
 // Cloudflare Unified Worker & Pages Handler (_worker.js)
-// Enruta APIs de música, búsqueda, artistas, streams y sirve archivos estáticos
+// Enruta APIs de música, búsqueda categorizada (canciones, artistas, álbumes, playlists), streams y sirve archivos estáticos
 
 export default {
   async fetch(request, env) {
@@ -50,11 +50,18 @@ export default {
           });
         }
 
-        // 1. BÚSQUEDA DE MÚSICA (/api/yt/search)
+        // 1. BÚSQUEDA DE MÚSICA CATEGORIZADA (/api/yt/search)
         if (pathname === '/api/yt/search') {
           const query = url.searchParams.get('q') || '';
           if (!query.trim()) {
-            return new Response(JSON.stringify({ results: [] }), { headers: corsHeaders });
+            return new Response(JSON.stringify({
+              results: [],
+              songs: [],
+              artists: [],
+              albums: [],
+              playlists: [],
+              topResult: null
+            }), { headers: corsHeaders });
           }
 
           // A) YouTube Music Innertube API
@@ -84,9 +91,9 @@ export default {
 
             if (ytMusicRes.ok) {
               const ytData = await ytMusicRes.json();
-              const items = parseYouTubeMusicSearchResults(ytData);
-              if (items.length > 0) {
-                return new Response(JSON.stringify({ results: items }), {
+              const categorizedData = parseYouTubeMusicSearchResults(ytData);
+              if (categorizedData.songs.length > 0 || categorizedData.artists.length > 0 || categorizedData.albums.length > 0) {
+                return new Response(JSON.stringify(categorizedData), {
                   headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=1800' }
                 });
               }
@@ -116,16 +123,23 @@ export default {
 
             if (ytWebRes.ok) {
               const data = await ytWebRes.json();
-              const items = parseStandardYouTubeSearchResults(data);
-              if (items.length > 0) {
-                return new Response(JSON.stringify({ results: items }), {
+              const categorizedData = parseStandardYouTubeSearchResults(data);
+              if (categorizedData.songs.length > 0) {
+                return new Response(JSON.stringify(categorizedData), {
                   headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=1800' }
                 });
               }
             }
           } catch (e) {}
 
-          return new Response(JSON.stringify({ results: [] }), { headers: corsHeaders });
+          return new Response(JSON.stringify({
+            results: [],
+            songs: [],
+            artists: [],
+            albums: [],
+            playlists: [],
+            topResult: null
+          }), { headers: corsHeaders });
         }
 
         // 2. DETALLES Y CANCIONES DE ARTISTA (/api/yt/artist)
@@ -135,7 +149,6 @@ export default {
             return new Response(JSON.stringify({ error: 'Nombre de artista requerido' }), { status: 400, headers: corsHeaders });
           }
 
-          // Buscar canciones más escuchadas del artista
           const topQuery = `${artistName} canciones`;
           let topSongs = [];
 
@@ -144,28 +157,22 @@ export default {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'Origin': 'https://music.youtube.com',
                 'Referer': 'https://music.youtube.com/',
                 'X-YouTube-Client-Name': '67',
                 'X-YouTube-Client-Version': '1.20240101.01.00'
               },
               body: JSON.stringify({
-                context: {
-                  client: {
-                    clientName: 'WEB_REMIX',
-                    clientVersion: '1.20240101.01.00',
-                    hl: 'es',
-                    gl: 'US'
-                  }
-                },
+                context: { client: { clientName: 'WEB_REMIX', clientVersion: '1.20240101.01.00', hl: 'es', gl: 'US' } },
                 query: topQuery
               })
             });
 
             if (ytMusicRes.ok) {
               const data = await ytMusicRes.json();
-              topSongs = parseYouTubeMusicSearchResults(data);
+              const parsed = parseYouTubeMusicSearchResults(data);
+              topSongs = parsed.songs;
             }
           } catch (e) {}
 
@@ -181,7 +188,7 @@ export default {
               });
               if (ytWebRes.ok) {
                 const data = await ytWebRes.json();
-                topSongs = parseStandardYouTubeSearchResults(data);
+                topSongs = parseStandardYouTubeSearchResults(data).songs;
               }
             } catch (err) {}
           }
@@ -192,9 +199,9 @@ export default {
             artist: {
               name: artistName,
               thumbnailUrl: heroThumb,
-              description: `Artista popular en Metrolist y YouTube Music.`
+              description: `Artista en Metrolist y YouTube Music.`
             },
-            topSongs: topSongs.slice(0, 20)
+            topSongs: topSongs.slice(0, 30)
           }), { headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=3600' } });
         }
 
@@ -205,13 +212,12 @@ export default {
             return new Response(JSON.stringify({ error: 'ID requerido' }), { status: 400, headers: corsHeaders });
           }
 
-          // A) YouTube TVHTML5_SIMPLY_EMBEDDED_PLAYER (Directo de YouTube)
           try {
             const ytPlayerRes = await fetch('https://www.youtube.com/youtubei/v1/player', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
               },
               body: JSON.stringify({
                 context: {
@@ -226,12 +232,7 @@ export default {
                     embedUrl: 'https://www.youtube.com'
                   }
                 },
-                videoId: id,
-                playbackContext: {
-                  contentPlaybackContext: {
-                    html5Preference: 'HTML5_PREF_WANTS'
-                  }
-                }
+                videoId: id
               })
             });
 
@@ -535,81 +536,245 @@ export default {
   }
 };
 
-// Parser para YouTube Music Innertube
+// Parser completo para YouTube Music Innertube (Categorizado)
 function parseYouTubeMusicSearchResults(data) {
-  const results = [];
+  const songs = [];
+  const artists = [];
+  const albums = [];
+  const playlists = [];
+  let topResult = null;
+
   try {
     const sections = data?.contents?.tabbedSearchResultsRenderer?.tabs?.[0]?.tabRenderer?.content?.sectionListRenderer?.contents || [];
     for (const section of sections) {
-      const contents = section?.musicShelfRenderer?.contents || section?.musicCardShelfRenderer?.contents || [];
-      for (const item of contents) {
-        const flexRenderer = item?.musicResponsiveListItemRenderer;
-        if (!flexRenderer) continue;
+      // 1. Tarjeta de Mejor Resultado (Hero card)
+      const cardShelf = section?.musicCardShelfRenderer;
+      if (cardShelf && !topResult) {
+        const cardTitle = cardShelf.title?.runs?.[0]?.text;
+        const cardSubtitleRuns = cardShelf.subtitle?.runs || [];
+        const cardType = cardSubtitleRuns[0]?.text?.toLowerCase() || 'canción';
+        const cardThumbnails = cardShelf.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails || [];
+        const cardThumb = cardThumbnails[cardThumbnails.length - 1]?.url;
+        const cardVideoId = cardShelf.onTap?.watchEndpoint?.videoId;
 
-        const flexColumns = flexRenderer.flexColumns || [];
-        const titleColumn = flexColumns[0]?.musicResponsiveListItemFlexColumnRenderer?.title?.runs?.[0]?.text;
-        const subtitleRuns = flexColumns[1]?.musicResponsiveListItemFlexColumnRenderer?.title?.runs || [];
+        topResult = {
+          title: cardTitle,
+          type: cardType,
+          thumbnailUrl: cardThumb || (cardVideoId ? `https://i.ytimg.com/vi/${cardVideoId}/hqdefault.jpg` : ''),
+          artist: cardSubtitleRuns[2]?.text || cardSubtitleRuns[0]?.text || 'Artista',
+          id: cardVideoId || ''
+        };
+      }
 
-        let artist = 'Artista';
-        let album = '';
-        if (subtitleRuns.length > 0) {
-          artist = subtitleRuns[0]?.text || 'Artista';
-          if (subtitleRuns.length >= 3) {
-            album = subtitleRuns[2]?.text || '';
+      // 2. Music Shelf Renderer (Listas verticales)
+      const shelf = section?.musicShelfRenderer;
+      if (shelf) {
+        const shelfTitle = (shelf.title?.runs?.[0]?.text || '').toLowerCase();
+        const contents = shelf.contents || [];
+
+        for (const item of contents) {
+          const flexRenderer = item?.musicResponsiveListItemRenderer;
+          if (!flexRenderer) continue;
+
+          const flexColumns = flexRenderer.flexColumns || [];
+          const titleColumn = flexColumns[0]?.musicResponsiveListItemFlexColumnRenderer?.title?.runs?.[0]?.text;
+          const subtitleRuns = flexColumns[1]?.musicResponsiveListItemFlexColumnRenderer?.title?.runs || [];
+
+          const videoId = flexRenderer?.playlistItemData?.videoId || flexRenderer?.doubleTapToLikeRenderer?.target?.videoId;
+          const thumbnails = flexRenderer?.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails || [];
+          const thumb = thumbnails.length > 0 ? thumbnails[thumbnails.length - 1].url : (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : '');
+
+          if (!titleColumn) continue;
+
+          // Detectar si es Artista
+          if (shelfTitle.includes('artista') || shelfTitle.includes('artist')) {
+            artists.push({
+              name: titleColumn,
+              type: 'artist',
+              subscribers: subtitleRuns[0]?.text || 'Artista',
+              thumbnailUrl: thumb
+            });
+          }
+          // Detectar si es Álbum
+          else if (shelfTitle.includes('álbum') || shelfTitle.includes('album') || shelfTitle.includes('sencillo') || shelfTitle.includes('single')) {
+            albums.push({
+              title: titleColumn,
+              type: 'album',
+              artist: subtitleRuns[0]?.text || subtitleRuns[2]?.text || 'Artista',
+              year: subtitleRuns[subtitleRuns.length - 1]?.text || '',
+              thumbnailUrl: thumb
+            });
+          }
+          // Detectar si es Playlist
+          else if (shelfTitle.includes('playlist') || shelfTitle.includes('lista')) {
+            playlists.push({
+              title: titleColumn,
+              type: 'playlist',
+              author: subtitleRuns[0]?.text || 'Metrolist',
+              trackCount: subtitleRuns[2]?.text || '',
+              thumbnailUrl: thumb
+            });
+          }
+          // Por defecto: Canción
+          else {
+            let artist = 'Artista';
+            let album = '';
+            if (subtitleRuns.length > 0) {
+              artist = subtitleRuns[0]?.text || 'Artista';
+              if (subtitleRuns.length >= 3) {
+                album = subtitleRuns[2]?.text || '';
+              }
+            }
+
+            if (videoId) {
+              songs.push({
+                id: videoId,
+                title: titleColumn,
+                artist: artist,
+                artists: artist,
+                album: album,
+                duration: 0,
+                thumbnailUrl: thumb
+              });
+            }
           }
         }
+      }
 
-        const videoId = flexRenderer?.playlistItemData?.videoId || flexRenderer?.doubleTapToLikeRenderer?.target?.videoId;
-        const thumbnails = flexRenderer?.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails || [];
-        const thumb = thumbnails.length > 0 ? thumbnails[thumbnails.length - 1].url : `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+      // 3. Music Carousel Shelf Renderer (Carrusel horizontal de artistas, álbumes o playlists)
+      const carousel = section?.musicCarouselShelfRenderer;
+      if (carousel) {
+        const carouselTitle = (carousel.header?.musicCarouselShelfBasicHeaderRenderer?.title?.runs?.[0]?.text || '').toLowerCase();
+        const items = carousel.contents || [];
 
-        if (videoId && titleColumn) {
-          results.push({
-            id: videoId,
-            title: titleColumn,
-            artist: artist,
-            artists: artist,
-            album: album,
-            duration: 0,
-            thumbnailUrl: thumb
-          });
+        for (const item of items) {
+          const twoRow = item?.musicTwoRowItemRenderer;
+          if (twoRow) {
+            const title = twoRow.title?.runs?.[0]?.text;
+            const subtitleRuns = twoRow.subtitle?.runs || [];
+            const thumbnails = twoRow.thumbnailRenderer?.musicThumbnailRenderer?.thumbnail?.thumbnails || [];
+            const thumb = thumbnails.length > 0 ? thumbnails[thumbnails.length - 1].url : '';
+            const pageType = twoRow.navigationEndpoint?.browseEndpoint?.browseEndpointContextSupportedConfigs?.browseEndpointContextMusicConfig?.pageType || '';
+            const videoId = twoRow.navigationEndpoint?.watchEndpoint?.videoId;
+
+            if (!title) continue;
+
+            if (carouselTitle.includes('artista') || carouselTitle.includes('artist') || pageType.includes('ARTIST')) {
+              artists.push({
+                name: title,
+                type: 'artist',
+                subscribers: subtitleRuns[0]?.text || 'Artista',
+                thumbnailUrl: thumb
+              });
+            } else if (carouselTitle.includes('álbum') || carouselTitle.includes('album') || pageType.includes('ALBUM')) {
+              albums.push({
+                title: title,
+                type: 'album',
+                artist: subtitleRuns[0]?.text || subtitleRuns[2]?.text || 'Artista',
+                year: subtitleRuns[subtitleRuns.length - 1]?.text || '',
+                thumbnailUrl: thumb
+              });
+            } else if (carouselTitle.includes('playlist') || carouselTitle.includes('lista') || pageType.includes('PLAYLIST')) {
+              playlists.push({
+                title: title,
+                type: 'playlist',
+                author: subtitleRuns[0]?.text || 'Metrolist',
+                trackCount: subtitleRuns[2]?.text || '',
+                thumbnailUrl: thumb
+              });
+            } else if (videoId) {
+              songs.push({
+                id: videoId,
+                title: title,
+                artist: subtitleRuns[0]?.text || 'Artista',
+                artists: subtitleRuns[0]?.text || 'Artista',
+                album: '',
+                duration: 0,
+                thumbnailUrl: thumb
+              });
+            }
+          }
         }
       }
     }
   } catch (err) {
     console.warn('Error parseando Innertube JSON:', err);
   }
-  return results;
+
+  // Si no se detectaron artistas explícitamente pero hay canciones, deducir artistas únicos destacados
+  if (artists.length === 0 && songs.length > 0) {
+    const seenArtists = new Set();
+    for (const song of songs) {
+      if (song.artist && song.artist !== 'Artista' && !seenArtists.has(song.artist)) {
+        seenArtists.add(song.artist);
+        artists.push({
+          name: song.artist,
+          type: 'artist',
+          subscribers: 'Artista',
+          thumbnailUrl: song.thumbnailUrl
+        });
+        if (artists.length >= 6) break;
+      }
+    }
+  }
+
+  return {
+    topResult,
+    songs: songs.filter(s => s.id),
+    artists,
+    albums,
+    playlists,
+    results: songs.filter(s => s.id)
+  };
 }
 
 // Parser para YouTube Web Estándar
 function parseStandardYouTubeSearchResults(data) {
-  const results = [];
+  const songs = [];
+  const artists = [];
+
   try {
     const contents = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents || [];
     for (const item of contents) {
       const video = item?.videoRenderer;
-      if (!video) continue;
+      const channel = item?.channelRenderer;
 
-      const videoId = video.videoId;
-      const title = video.title?.runs?.[0]?.text;
-      const artist = video.ownerText?.runs?.[0]?.text || 'Artista';
-      const thumb = video.thumbnail?.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+      if (video) {
+        const videoId = video.videoId;
+        const title = video.title?.runs?.[0]?.text;
+        const artist = video.ownerText?.runs?.[0]?.text || 'Artista';
+        const thumb = video.thumbnail?.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 
-      if (videoId && title) {
-        results.push({
-          id: videoId,
-          title: title,
-          artist: artist,
-          artists: artist,
-          album: '',
-          duration: 0,
-          thumbnailUrl: thumb
+        if (videoId && title) {
+          songs.push({
+            id: videoId,
+            title: title,
+            artist: artist,
+            artists: artist,
+            album: '',
+            duration: 0,
+            thumbnailUrl: thumb
+          });
+        }
+      } else if (channel) {
+        artists.push({
+          name: channel.title?.simpleText || 'Artista',
+          type: 'artist',
+          subscribers: channel.subscriberCountText?.simpleText || 'Artista',
+          thumbnailUrl: channel.thumbnail?.thumbnails?.[0]?.url || ''
         });
       }
     }
   } catch (err) {
     console.warn('Error parseando YouTube Web JSON:', err);
   }
-  return results;
+
+  return {
+    topResult: null,
+    songs,
+    artists,
+    albums: [],
+    playlists: [],
+    results: songs
+  };
 }
