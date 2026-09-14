@@ -28,7 +28,7 @@ export default {
             return new Response(JSON.stringify({ results: [] }), { headers: corsHeaders });
           }
 
-          // A) YouTube Music Innertube API con headers completos
+          // A) YouTube Music Innertube API
           try {
             const ytMusicRes = await fetch('https://music.youtube.com/youtubei/v1/search', {
               method: 'POST',
@@ -63,10 +63,10 @@ export default {
               }
             }
           } catch (e) {
-            console.warn('YT Music Innertube error:', e);
+            console.warn('YT Music Innertube search error:', e);
           }
 
-          // B) YouTube WEB Client estándar (100% fiable en serverless)
+          // B) YouTube WEB Client estándar
           try {
             const ytWebRes = await fetch('https://www.youtube.com/youtubei/v1/search', {
               method: 'POST',
@@ -100,18 +100,17 @@ export default {
             console.warn('YT Web search error:', e);
           }
 
-          // C) Fallbacks de servidores de música
-          const apis = [
+          // C) Fallbacks de instancias
+          const searchApis = [
             `https://pipedapi.leptons.xyz/search?q=${encodeURIComponent(query)}&filter=music_songs`,
             `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=music_songs`,
+            `https://inv.tux.pizza/api/v1/search?q=${encodeURIComponent(query)}&type=video`,
             `https://invidious.jing.rocks/api/v1/search?q=${encodeURIComponent(query)}&type=video`
           ];
 
-          for (const api of apis) {
+          for (const api of searchApis) {
             try {
-              const res = await fetch(api, {
-                headers: { 'User-Agent': 'Mozilla/5.0' }
-              });
+              const res = await fetch(api, { headers: { 'User-Agent': 'Mozilla/5.0' } });
               if (res.ok) {
                 const data = await res.json();
                 const rawItems = Array.isArray(data) ? data : (data.items || []);
@@ -133,9 +132,7 @@ export default {
                   return new Response(JSON.stringify({ results: items }), { headers: corsHeaders });
                 }
               }
-            } catch (err) {
-              continue;
-            }
+            } catch (err) {}
           }
 
           return new Response(JSON.stringify({ results: [] }), { headers: corsHeaders });
@@ -148,41 +145,134 @@ export default {
             return new Response(JSON.stringify({ error: 'ID requerido' }), { status: 400, headers: corsHeaders });
           }
 
+          // A) YouTube Innertube Player API (ANDROID_VR / TVHTML5 - directo y sin throttles)
+          const playerClients = [
+            {
+              clientName: 'ANDROID_VR',
+              clientVersion: '1.59.19',
+              deviceModel: 'Quest 3',
+              hl: 'es',
+              gl: 'US'
+            },
+            {
+              clientName: 'TVHTML5_SIMPLY_EMBEDDED_PLAYER',
+              clientVersion: '2.0',
+              hl: 'es',
+              gl: 'US'
+            },
+            {
+              clientName: 'ANDROID',
+              clientVersion: '19.09.37',
+              androidSdkVersion: 30,
+              hl: 'es',
+              gl: 'US'
+            },
+            {
+              clientName: 'IOS',
+              clientVersion: '19.09.3',
+              deviceModel: 'iPhone14,3',
+              hl: 'es',
+              gl: 'US'
+            }
+          ];
+
+          for (const clientConfig of playerClients) {
+            try {
+              const ytPlayerRes = await fetch('https://www.youtube.com/youtubei/v1/player', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                },
+                body: JSON.stringify({
+                  context: {
+                    client: clientConfig
+                  },
+                  videoId: id,
+                  playbackContext: {
+                    contentPlaybackContext: {
+                      html5Preference: 'HTML5_PREF_WANTS'
+                    }
+                  }
+                })
+              });
+
+              if (ytPlayerRes.ok) {
+                const playerData = await ytPlayerRes.json();
+                const streamingData = playerData.streamingData;
+                if (streamingData) {
+                  const allFormats = [
+                    ...(streamingData.adaptiveFormats || []),
+                    ...(streamingData.formats || [])
+                  ];
+
+                  // Buscar streams de audio directos con URL válida
+                  const audioFormats = allFormats.filter(f => f.url && (f.mimeType?.startsWith('audio/') || f.audioQuality));
+                  if (audioFormats.length > 0) {
+                    const best = audioFormats.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+                    return new Response(JSON.stringify({
+                      url: best.url,
+                      bitrate: best.bitrate,
+                      mimeType: best.mimeType,
+                      title: playerData.videoDetails?.title || '',
+                      artist: playerData.videoDetails?.author || ''
+                    }), { headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=3600' } });
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn(`Innertube player (${clientConfig.clientName}) error:`, e);
+            }
+          }
+
+          // B) Red de servidores Invidious / Piped para resolución de stream
           const streamApis = [
+            `https://inv.tux.pizza/api/v1/videos/${id}`,
+            `https://invidious.jing.rocks/api/v1/videos/${id}`,
+            `https://invidious.nerdvpn.de/api/v1/videos/${id}`,
+            `https://invidious.drgns.space/api/v1/videos/${id}`,
+            `https://yt.artemislena.eu/api/v1/videos/${id}`,
             `https://pipedapi.leptons.xyz/streams/${id}`,
             `https://pipedapi.kavin.rocks/streams/${id}`,
-            `https://invidious.jing.rocks/api/v1/videos/${id}`,
-            `https://invidious.nerdvpn.de/api/v1/videos/${id}`
+            `https://pipedapi.tokhmi.xyz/streams/${id}`
           ];
 
           for (const api of streamApis) {
             try {
               const res = await fetch(api, {
-                headers: { 'User-Agent': 'Mozilla/5.0' }
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
               });
               if (res.ok) {
                 const data = await res.json();
+
+                // Formato Piped
                 if (data.audioStreams && data.audioStreams.length > 0) {
                   const best = data.audioStreams.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
-                  return new Response(JSON.stringify({
-                    url: best.url,
-                    bitrate: best.bitrate,
-                    mimeType: best.mimeType,
-                    title: data.title,
-                    artist: data.uploader
-                  }), { headers: corsHeaders });
-                }
-                if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
-                  const audioFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('audio/'));
-                  if (audioFormats.length > 0) {
-                    const best = audioFormats.sort((a, b) => (parseInt(b.bitrate) || 0) - (parseInt(a.bitrate) || 0))[0];
+                  if (best && best.url) {
                     return new Response(JSON.stringify({
                       url: best.url,
                       bitrate: best.bitrate,
-                      mimeType: best.type,
+                      mimeType: best.mimeType,
                       title: data.title,
-                      artist: data.author
-                    }), { headers: corsHeaders });
+                      artist: data.uploader
+                    }), { headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=3600' } });
+                  }
+                }
+
+                // Formato Invidious
+                if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
+                  const audioFormats = data.adaptiveFormats.filter(f => f.url && (f.type?.startsWith('audio/') || f.mimeType?.startsWith('audio/')));
+                  if (audioFormats.length > 0) {
+                    const best = audioFormats.sort((a, b) => (parseInt(b.bitrate) || 0) - (parseInt(a.bitrate) || 0))[0];
+                    if (best && best.url) {
+                      return new Response(JSON.stringify({
+                        url: best.url,
+                        bitrate: best.bitrate,
+                        mimeType: best.type || best.mimeType,
+                        title: data.title,
+                        artist: data.author
+                      }), { headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=3600' } });
+                    }
                   }
                 }
               }
