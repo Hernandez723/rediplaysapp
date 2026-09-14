@@ -1,10 +1,9 @@
-// Metrolist Web - Audio Player Engine
+// Metrolist Web - Audio Player Engine (Hybrid YouTube IFrame + HTML5 Audio)
 
 import { YTMusic } from './yt-api.js';
 
 class AudioPlayer {
   constructor() {
-    this.audio = new Audio();
     this.currentTrack = null;
     this.queue = [];
     this.queueIndex = -1;
@@ -15,42 +14,94 @@ class AudioPlayer {
     this.onStateChangeCallbacks = [];
     this.onTimeUpdateCallbacks = [];
 
-    this._initAudioEvents();
+    this.ytPlayer = null;
+    this.isYtReady = false;
+    this.timeUpdateTimer = null;
+
+    this._initYouTubeIframe();
     this._initMediaSession();
   }
 
-  _initAudioEvents() {
-    this.audio.addEventListener('play', () => {
-      this.isPlaying = true;
-      this._notifyState();
-      this._updateMediaSessionState();
-    });
+  _initYouTubeIframe() {
+    // Cargar la API de YouTube si no está presente
+    if (!window.YT) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    }
 
-    this.audio.addEventListener('pause', () => {
-      this.isPlaying = false;
-      this._notifyState();
-      this._updateMediaSessionState();
-    });
+    window.onYouTubeIframeAPIReady = () => {
+      this.ytPlayer = new window.YT.Player('yt-player-frame', {
+        height: '1',
+        width: '1',
+        playerVars: {
+          autoplay: 1,
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          rel: 0,
+          modestbranding: 1,
+          playsinline: 1,
+          origin: window.location.origin
+        },
+        events: {
+          onReady: () => {
+            this.isYtReady = true;
+          },
+          onStateChange: (event) => {
+            // YT.PlayerState.PLAYING = 1, PAUSED = 2, ENDED = 0, BUFFERING = 3
+            if (event.data === window.YT.PlayerState.PLAYING) {
+              this.isPlaying = true;
+              this._startTimeUpdater();
+              this._notifyState();
+              this._updateMediaSessionState();
+            } else if (event.data === window.YT.PlayerState.PAUSED) {
+              this.isPlaying = false;
+              this._stopTimeUpdater();
+              this._notifyState();
+              this._updateMediaSessionState();
+            } else if (event.data === window.YT.PlayerState.ENDED) {
+              this._stopTimeUpdater();
+              if (this.repeatMode === 'one') {
+                this.seek(0);
+                this.play();
+              } else {
+                this.next();
+              }
+            }
+          },
+          onError: (err) => {
+            console.warn('YouTube Player error code:', err.data);
+            this.isPlaying = false;
+            this._notifyState();
+          }
+        }
+      });
+    };
 
-    this.audio.addEventListener('timeupdate', () => {
-      const current = this.audio.currentTime;
-      const duration = this.audio.duration || 0;
-      this.onTimeUpdateCallbacks.forEach(cb => cb(current, duration));
-    });
+    // Si la API ya estaba lista
+    if (window.YT && window.YT.Player) {
+      window.onYouTubeIframeAPIReady();
+    }
+  }
 
-    this.audio.addEventListener('ended', () => {
-      if (this.repeatMode === 'one') {
-        this.audio.currentTime = 0;
-        this.audio.play();
-      } else {
-        this.next();
+  _startTimeUpdater() {
+    this._stopTimeUpdater();
+    this.timeUpdateTimer = setInterval(() => {
+      if (this.ytPlayer && typeof this.ytPlayer.getCurrentTime === 'function') {
+        const current = this.ytPlayer.getCurrentTime() || 0;
+        const duration = this.ytPlayer.getDuration() || 0;
+        this.onTimeUpdateCallbacks.forEach(cb => cb(current, duration));
       }
-    });
+    }, 250);
+  }
 
-    this.audio.addEventListener('error', (e) => {
-      console.error('Error al reproducir audio:', e);
-      this._notifyState();
-    });
+  _stopTimeUpdater() {
+    if (this.timeUpdateTimer) {
+      clearInterval(this.timeUpdateTimer);
+      this.timeUpdateTimer = null;
+    }
   }
 
   _initMediaSession() {
@@ -101,19 +152,16 @@ class AudioPlayer {
     // Cargar letras en segundo plano
     this.loadLyrics(track);
 
-    // Obtener stream de audio
-    const streamUrl = await YTMusic.getStream(track.id);
-    if (!streamUrl) {
-      alert('No se pudo obtener el audio de esta canción.');
-      return;
-    }
-
-    this.audio.src = streamUrl;
-    try {
-      await this.audio.play();
-    } catch (err) {
-      console.warn('Autoplay bloqueado por el navegador o error:', err);
-    }
+    // Reproducir vía YouTube Player Engine
+    const play = () => {
+      if (this.ytPlayer && typeof this.ytPlayer.loadVideoById === 'function') {
+        this.ytPlayer.loadVideoById(track.id);
+        this.ytPlayer.playVideo();
+      } else {
+        setTimeout(play, 200);
+      }
+    };
+    play();
   }
 
   async loadLyrics(track) {
@@ -148,11 +196,15 @@ class AudioPlayer {
   }
 
   play() {
-    this.audio.play();
+    if (this.ytPlayer && typeof this.ytPlayer.playVideo === 'function') {
+      this.ytPlayer.playVideo();
+    }
   }
 
   pause() {
-    this.audio.pause();
+    if (this.ytPlayer && typeof this.ytPlayer.pauseVideo === 'function') {
+      this.ytPlayer.pauseVideo();
+    }
   }
 
   togglePlay() {
@@ -164,11 +216,15 @@ class AudioPlayer {
   }
 
   seek(seconds) {
-    this.audio.currentTime = seconds;
+    if (this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
+      this.ytPlayer.seekTo(seconds, true);
+    }
   }
 
   setVolume(fraction) {
-    this.audio.volume = Math.max(0, Math.min(1, fraction));
+    if (this.ytPlayer && typeof this.ytPlayer.setVolume === 'function') {
+      this.ytPlayer.setVolume(Math.round(Math.max(0, Math.min(1, fraction)) * 100));
+    }
   }
 
   next() {
@@ -182,8 +238,8 @@ class AudioPlayer {
   }
 
   prev() {
-    if (this.audio.currentTime > 3) {
-      this.audio.currentTime = 0;
+    if (this.ytPlayer && typeof this.ytPlayer.getCurrentTime === 'function' && this.ytPlayer.getCurrentTime() > 3) {
+      this.seek(0);
       return;
     }
     if (this.queue.length === 0) return;
