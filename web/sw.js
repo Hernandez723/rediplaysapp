@@ -1,6 +1,6 @@
-// Metrolist Web - Service Worker
+// Metrolist Web - Service Worker (Resilient Cache)
 
-const CACHE_NAME = 'metrolist-cache-v1';
+const CACHE_NAME = 'metrolist-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -17,7 +17,7 @@ const ASSETS_TO_CACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      return cache.addAll(ASSETS_TO_CACHE).catch(e => console.log('Cache add error:', e));
     })
   );
   self.skipWaiting();
@@ -35,11 +35,22 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Solo cachear peticiones estáticas GET (no APIs de streaming ni Cloudflare D1)
-  if (event.request.method === 'GET' && !event.request.url.includes('/api/')) {
+  const url = new URL(event.request.url);
+
+  // NO interceptar llamadas a APIs internas ni externas
+  if (url.pathname.startsWith('/api/') || url.origin !== self.location.origin) {
+    return;
+  }
+
+  // Interceptar solo assets estáticos de la misma app
+  if (event.request.method === 'GET') {
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
-        return cachedResponse || fetch(event.request);
+        return cachedResponse || fetch(event.request).catch(() => {
+          if (event.request.mode === 'navigate') {
+            return caches.match('/index.html');
+          }
+        });
       })
     );
   }
