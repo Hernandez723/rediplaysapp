@@ -1,5 +1,5 @@
 // Cloudflare Unified Worker & Pages Handler (_worker.js)
-// Maneja todas las rutas /api/* y sirve los archivos estáticos
+// Enruta todas las APIs del reproductor y sirve los archivos estáticos
 
 export default {
   async fetch(request, env) {
@@ -24,17 +24,21 @@ export default {
         // 1. BÚSQUEDA DE MÚSICA (/api/yt/search)
         if (pathname === '/api/yt/search') {
           const query = url.searchParams.get('q') || '';
-          if (!query) {
+          if (!query.trim()) {
             return new Response(JSON.stringify({ results: [] }), { headers: corsHeaders });
           }
 
-          // A) Intentar con YouTube Music Innertube API oficial (WEB_REMIX)
+          // A) YouTube Music Innertube API con headers completos
           try {
-            const ytRes = await fetch('https://music.youtube.com/youtubei/v1/search', {
+            const ytMusicRes = await fetch('https://music.youtube.com/youtubei/v1/search', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Origin': 'https://music.youtube.com',
+                'Referer': 'https://music.youtube.com/',
+                'X-YouTube-Client-Name': '67',
+                'X-YouTube-Client-Version': '1.20240101.01.00'
               },
               body: JSON.stringify({
                 context: {
@@ -49,8 +53,8 @@ export default {
               })
             });
 
-            if (ytRes.ok) {
-              const ytData = await ytRes.json();
+            if (ytMusicRes.ok) {
+              const ytData = await ytMusicRes.json();
               const items = parseYouTubeMusicSearchResults(ytData);
               if (items.length > 0) {
                 return new Response(JSON.stringify({ results: items }), {
@@ -59,18 +63,51 @@ export default {
               }
             }
           } catch (e) {
-            console.warn('Innertube direct fetch failed, trying piped instances...', e);
+            console.warn('YT Music Innertube error:', e);
           }
 
-          // B) Fallback a instancias Piped / Invidious desde el servidor de Cloudflare
-          const fallbackApis = [
-            `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=music_songs`,
-            `https://api.piped.privacydev.net/search?q=${encodeURIComponent(query)}&filter=music_songs`,
+          // B) YouTube WEB Client estándar (100% fiable en serverless)
+          try {
+            const ytWebRes = await fetch('https://www.youtube.com/youtubei/v1/search', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+              },
+              body: JSON.stringify({
+                context: {
+                  client: {
+                    clientName: 'WEB',
+                    clientVersion: '2.20240101.01.00',
+                    hl: 'es',
+                    gl: 'US'
+                  }
+                },
+                query: query + ' audio'
+              })
+            });
+
+            if (ytWebRes.ok) {
+              const data = await ytWebRes.json();
+              const items = parseStandardYouTubeSearchResults(data);
+              if (items.length > 0) {
+                return new Response(JSON.stringify({ results: items }), {
+                  headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=1800' }
+                });
+              }
+            }
+          } catch (e) {
+            console.warn('YT Web search error:', e);
+          }
+
+          // C) Fallbacks de servidores de música
+          const apis = [
             `https://pipedapi.leptons.xyz/search?q=${encodeURIComponent(query)}&filter=music_songs`,
-            `https://invidious.privacydev.net/api/v1/search?q=${encodeURIComponent(query)}&type=video`
+            `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=music_songs`,
+            `https://invidious.jing.rocks/api/v1/search?q=${encodeURIComponent(query)}&type=video`
           ];
 
-          for (const api of fallbackApis) {
+          for (const api of apis) {
             try {
               const res = await fetch(api, {
                 headers: { 'User-Agent': 'Mozilla/5.0' }
@@ -104,7 +141,7 @@ export default {
           return new Response(JSON.stringify({ results: [] }), { headers: corsHeaders });
         }
 
-        // 2. OBTENER STREAM DE AUDIO (/api/yt/stream)
+        // 2. STREAM DE AUDIO (/api/yt/stream)
         if (pathname === '/api/yt/stream') {
           const id = url.searchParams.get('id');
           if (!id) {
@@ -112,10 +149,10 @@ export default {
           }
 
           const streamApis = [
-            `https://pipedapi.kavin.rocks/streams/${id}`,
-            `https://api.piped.privacydev.net/streams/${id}`,
             `https://pipedapi.leptons.xyz/streams/${id}`,
-            `https://invidious.privacydev.net/api/v1/videos/${id}`
+            `https://pipedapi.kavin.rocks/streams/${id}`,
+            `https://invidious.jing.rocks/api/v1/videos/${id}`,
+            `https://invidious.nerdvpn.de/api/v1/videos/${id}`
           ];
 
           for (const api of streamApis) {
@@ -420,7 +457,7 @@ export default {
       }
     }
 
-    // Servir assets estáticos (Cloudflare Pages / Workers Assets)
+    // Servir assets estáticos
     if (env && env.ASSETS) {
       return env.ASSETS.fetch(request);
     }
@@ -429,7 +466,7 @@ export default {
   }
 };
 
-// Parser para la respuesta JSON de YouTube Music Innertube
+// Parser para YouTube Music Innertube
 function parseYouTubeMusicSearchResults(data) {
   const results = [];
   try {
@@ -472,6 +509,38 @@ function parseYouTubeMusicSearchResults(data) {
     }
   } catch (err) {
     console.warn('Error parseando Innertube JSON:', err);
+  }
+  return results;
+}
+
+// Parser para YouTube Web Estándar
+function parseStandardYouTubeSearchResults(data) {
+  const results = [];
+  try {
+    const contents = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents || [];
+    for (const item of contents) {
+      const video = item?.videoRenderer;
+      if (!video) continue;
+
+      const videoId = video.videoId;
+      const title = video.title?.runs?.[0]?.text;
+      const artist = video.ownerText?.runs?.[0]?.text || 'Artista';
+      const thumb = video.thumbnail?.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+
+      if (videoId && title) {
+        results.push({
+          id: videoId,
+          title: title,
+          artist: artist,
+          artists: artist,
+          album: '',
+          duration: 0,
+          thumbnailUrl: thumb
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('Error parseando YouTube Web JSON:', err);
   }
   return results;
 }
