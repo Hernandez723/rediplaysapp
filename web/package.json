@@ -1,0 +1,26 @@
+{
+  "name": "metrolist-web",
+  "version": "1.0.0",
+  "description": "Metrolist Web Player con sincronización en Cloudflare Workers y D1",
+  "main": "src/app.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler pages dev . --d1 DB=metrolist_db --local",
+    "init-db-local": "wrangler d1 execute metrolist_db --local --file=./schema.sql",
+    "init-db-remote": "wrangler d1 execute metrolist_db --remote --file=./schema.sql",
+    "deploy": "wrangler pages deploy ."
+  },
+  "keywords": [
+    "music",
+    "metrolist",
+    "pwa",
+    "cloudflare-workers",
+    "cloudflare-d1",
+    "youtube-music"
+  ],
+  "author": "Metrolist Team",
+  "license": "GPL-3.0",
+  "devDependencies": {
+    "wrangler": "^3.100.0"
+  }
+}
