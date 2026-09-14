@@ -1,13 +1,13 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "rediweb",
-  "main": "web/worker.js",
+  "main": "worker.js",
   "compatibility_date": "2024-01-01",
   "observability": {
     "enabled": true
   },
   "assets": {
-    "directory": "web",
+    "directory": ".",
     "binding": "ASSETS",
     "run_worker_first": true,
     "not_found_handling": "single-page-application"
