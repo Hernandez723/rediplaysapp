@@ -129,29 +129,41 @@ class AudioPlayer {
     }
   }
 
-  // Si una canción tiene restricciones de inserción (como VEVO/Sony), busca y reproduce automáticamente la versión de audio
+  // Si una canción tiene restricciones de inserción (como VEVO/Sony), activa streaming directo por HTML5 Audio
   async _tryAlternativeVersion(track) {
+    try {
+      console.log('Obteniendo audio stream directo para track con restricción 150:', track.title);
+      const streamUrl = await YTMusic.getStream(track.id);
+      if (streamUrl) {
+        this.usingHtml5 = true;
+        this.fallbackAudio.src = streamUrl;
+        this.fallbackAudio.currentTime = 0;
+        await this.fallbackAudio.play();
+        this.isPlaying = true;
+        this._notifyState();
+        return;
+      }
+    } catch (e) {
+      console.warn('Fallo al reproducir audio directo:', e);
+    }
+
+    // Si el stream directo falló, intentar con versión alternativa
     const query = `${track.title} ${track.artists || track.artist || ''} audio`;
     const results = await YTMusic.search(query);
     const alternative = results.find(r => r.id !== track.id);
 
     if (alternative) {
-      console.log('Reproduciendo versión alternativa sin restricciones:', alternative.title, alternative.id);
-      if (this.ytPlayer && typeof this.ytPlayer.loadVideoById === 'function') {
-        this.ytPlayer.loadVideoById(alternative.id);
-        this.ytPlayer.playVideo();
-        return;
+      const altStream = await YTMusic.getStream(alternative.id);
+      if (altStream) {
+        this.usingHtml5 = true;
+        this.fallbackAudio.src = altStream;
+        try {
+          await this.fallbackAudio.play();
+          this.isPlaying = true;
+          this._notifyState();
+          return;
+        } catch (err) {}
       }
-    }
-
-    // Fallback a HTML5 audio si está disponible
-    const streamUrl = await YTMusic.getStream(track.id);
-    if (streamUrl) {
-      this.usingHtml5 = true;
-      this.fallbackAudio.src = streamUrl;
-      try {
-        await this.fallbackAudio.play();
-      } catch (e) {}
     }
   }
 
