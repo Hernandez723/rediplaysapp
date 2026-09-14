@@ -1,4 +1,4 @@
-// Metrolist Web - Audio Player Engine (Hybrid YouTube IFrame + HTML5 Audio)
+// Metrolist Web - Audio Player Engine (Dual Engine: IFrame + HTML5 Audio + Auto-Fallback)
 
 import { YTMusic } from './yt-api.js';
 
@@ -17,13 +17,49 @@ class AudioPlayer {
     this.ytPlayer = null;
     this.isYtReady = false;
     this.timeUpdateTimer = null;
+    this.fallbackAudio = new Audio();
+    this.usingHtml5 = false;
+    this.triedAlternatives = new Set();
 
     this._initYouTubeIframe();
+    this._initHtml5Audio();
     this._initMediaSession();
   }
 
+  _initHtml5Audio() {
+    this.fallbackAudio.addEventListener('play', () => {
+      this.isPlaying = true;
+      this._notifyState();
+      this._updateMediaSessionState();
+    });
+
+    this.fallbackAudio.addEventListener('pause', () => {
+      this.isPlaying = false;
+      this._notifyState();
+      this._updateMediaSessionState();
+    });
+
+    this.fallbackAudio.addEventListener('timeupdate', () => {
+      if (this.usingHtml5) {
+        const current = this.fallbackAudio.currentTime;
+        const duration = this.fallbackAudio.duration || 0;
+        this.onTimeUpdateCallbacks.forEach(cb => cb(current, duration));
+      }
+    });
+
+    this.fallbackAudio.addEventListener('ended', () => {
+      if (this.usingHtml5) {
+        if (this.repeatMode === 'one') {
+          this.fallbackAudio.currentTime = 0;
+          this.fallbackAudio.play();
+        } else {
+          this.next();
+        }
+      }
+    });
+  }
+
   _initYouTubeIframe() {
-    // Cargar la API de YouTube si no está presente
     if (!window.YT) {
       const tag = document.createElement('script');
       tag.src = 'https://www.youtube.com/iframe_api';
@@ -33,8 +69,8 @@ class AudioPlayer {
 
     window.onYouTubeIframeAPIReady = () => {
       this.ytPlayer = new window.YT.Player('yt-player-frame', {
-        height: '1',
-        width: '1',
+        height: '64',
+        width: '64',
         playerVars: {
           autoplay: 1,
           controls: 0,
@@ -43,6 +79,7 @@ class AudioPlayer {
           rel: 0,
           modestbranding: 1,
           playsinline: 1,
+          enablejsapi: 1,
           origin: window.location.origin
         },
         events: {
@@ -50,7 +87,9 @@ class AudioPlayer {
             this.isYtReady = true;
           },
           onStateChange: (event) => {
-            // YT.PlayerState.PLAYING = 1, PAUSED = 2, ENDED = 0, BUFFERING = 3
+            if (this.usingHtml5) return;
+
+            // 1 = PLAYING, 2 = PAUSED, 0 = ENDED, 3 = BUFFERING
             if (event.data === window.YT.PlayerState.PLAYING) {
               this.isPlaying = true;
               this._startTimeUpdater();
@@ -71,25 +110,55 @@ class AudioPlayer {
               }
             }
           },
-          onError: (err) => {
-            console.warn('YouTube Player error code:', err.data);
-            this.isPlaying = false;
-            this._notifyState();
+          onError: async (err) => {
+            console.warn('YouTube Player error code:', err.data, 'para track:', this.currentTrack?.title);
+            // Error 101 o 150 = Restricción de inserción del autor/discográfica
+            // Error 2 = ID de video no válido
+            // Error 5 = Error de reproductor HTML5
+            if (this.currentTrack && !this.triedAlternatives.has(this.currentTrack.id)) {
+              this.triedAlternatives.add(this.currentTrack.id);
+              await this._tryAlternativeVersion(this.currentTrack);
+            }
           }
         }
       });
     };
 
-    // Si la API ya estaba lista
     if (window.YT && window.YT.Player) {
       window.onYouTubeIframeAPIReady();
+    }
+  }
+
+  // Si una canción tiene restricciones de inserción (como VEVO/Sony), busca y reproduce automáticamente la versión de audio
+  async _tryAlternativeVersion(track) {
+    const query = `${track.title} ${track.artists || track.artist || ''} audio`;
+    const results = await YTMusic.search(query);
+    const alternative = results.find(r => r.id !== track.id);
+
+    if (alternative) {
+      console.log('Reproduciendo versión alternativa sin restricciones:', alternative.title, alternative.id);
+      if (this.ytPlayer && typeof this.ytPlayer.loadVideoById === 'function') {
+        this.ytPlayer.loadVideoById(alternative.id);
+        this.ytPlayer.playVideo();
+        return;
+      }
+    }
+
+    // Fallback a HTML5 audio si está disponible
+    const streamUrl = await YTMusic.getStream(track.id);
+    if (streamUrl) {
+      this.usingHtml5 = true;
+      this.fallbackAudio.src = streamUrl;
+      try {
+        await this.fallbackAudio.play();
+      } catch (e) {}
     }
   }
 
   _startTimeUpdater() {
     this._stopTimeUpdater();
     this.timeUpdateTimer = setInterval(() => {
-      if (this.ytPlayer && typeof this.ytPlayer.getCurrentTime === 'function') {
+      if (!this.usingHtml5 && this.ytPlayer && typeof this.ytPlayer.getCurrentTime === 'function') {
         const current = this.ytPlayer.getCurrentTime() || 0;
         const duration = this.ytPlayer.getDuration() || 0;
         this.onTimeUpdateCallbacks.forEach(cb => cb(current, duration));
@@ -146,6 +215,8 @@ class AudioPlayer {
     }
 
     this.currentTrack = track;
+    this.usingHtml5 = false;
+    this.fallbackAudio.pause();
     this._updateMediaSessionMetadata();
     this._notifyState();
 
@@ -196,13 +267,17 @@ class AudioPlayer {
   }
 
   play() {
-    if (this.ytPlayer && typeof this.ytPlayer.playVideo === 'function') {
+    if (this.usingHtml5) {
+      this.fallbackAudio.play();
+    } else if (this.ytPlayer && typeof this.ytPlayer.playVideo === 'function') {
       this.ytPlayer.playVideo();
     }
   }
 
   pause() {
-    if (this.ytPlayer && typeof this.ytPlayer.pauseVideo === 'function') {
+    if (this.usingHtml5) {
+      this.fallbackAudio.pause();
+    } else if (this.ytPlayer && typeof this.ytPlayer.pauseVideo === 'function') {
       this.ytPlayer.pauseVideo();
     }
   }
@@ -216,12 +291,15 @@ class AudioPlayer {
   }
 
   seek(seconds) {
-    if (this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
+    if (this.usingHtml5) {
+      this.fallbackAudio.currentTime = seconds;
+    } else if (this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
       this.ytPlayer.seekTo(seconds, true);
     }
   }
 
   setVolume(fraction) {
+    this.fallbackAudio.volume = Math.max(0, Math.min(1, fraction));
     if (this.ytPlayer && typeof this.ytPlayer.setVolume === 'function') {
       this.ytPlayer.setVolume(Math.round(Math.max(0, Math.min(1, fraction)) * 100));
     }
@@ -238,7 +316,11 @@ class AudioPlayer {
   }
 
   prev() {
-    if (this.ytPlayer && typeof this.ytPlayer.getCurrentTime === 'function' && this.ytPlayer.getCurrentTime() > 3) {
+    if (!this.usingHtml5 && this.ytPlayer && typeof this.ytPlayer.getCurrentTime === 'function' && this.ytPlayer.getCurrentTime() > 3) {
+      this.seek(0);
+      return;
+    }
+    if (this.usingHtml5 && this.fallbackAudio.currentTime > 3) {
       this.seek(0);
       return;
     }
