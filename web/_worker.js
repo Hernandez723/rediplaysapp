@@ -1,5 +1,5 @@
 // Cloudflare Unified Worker & Pages Handler (_worker.js)
-// Enruta todas las APIs del reproductor, streams con proxy y sirve los archivos estáticos
+// Resuelve audio directo sin intermediarios caídos y sirve los archivos estáticos
 
 export default {
   async fetch(request, env) {
@@ -91,9 +91,7 @@ export default {
                 });
               }
             }
-          } catch (e) {
-            console.warn('YT Music Innertube search error:', e);
-          }
+          } catch (e) {}
 
           // B) YouTube WEB Client estándar
           try {
@@ -125,157 +123,78 @@ export default {
                 });
               }
             }
-          } catch (e) {
-            console.warn('YT Web search error:', e);
-          }
-
-          // C) Fallbacks de instancias
-          const searchApis = [
-            `https://pipedapi.leptons.xyz/search?q=${encodeURIComponent(query)}&filter=music_songs`,
-            `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=music_songs`,
-            `https://inv.tux.pizza/api/v1/search?q=${encodeURIComponent(query)}&type=video`,
-            `https://invidious.jing.rocks/api/v1/search?q=${encodeURIComponent(query)}&type=video`
-          ];
-
-          for (const api of searchApis) {
-            try {
-              const res = await fetch(api, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-              if (res.ok) {
-                const data = await res.json();
-                const rawItems = Array.isArray(data) ? data : (data.items || []);
-                const items = rawItems.map(item => {
-                  const urlPath = item.url || '';
-                  const videoId = item.videoId || (urlPath.includes('/watch?v=') ? urlPath.split('/watch?v=')[1] : urlPath.replace('/', ''));
-                  return {
-                    id: videoId,
-                    title: item.title || 'Canción',
-                    artist: item.uploaderName || item.author || item.artist || 'Artista',
-                    artists: item.uploaderName || item.author || item.artist || 'Artista',
-                    album: item.album || '',
-                    duration: item.duration || 0,
-                    thumbnailUrl: item.thumbnail || (item.thumbnails && item.thumbnails[0]?.url) || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
-                  };
-                }).filter(i => i.id && i.id.length >= 8);
-
-                if (items.length > 0) {
-                  return new Response(JSON.stringify({ results: items }), { headers: corsHeaders });
-                }
-              }
-            } catch (err) {}
-          }
+          } catch (e) {}
 
           return new Response(JSON.stringify({ results: [] }), { headers: corsHeaders });
         }
 
-        // 2. STREAM DE AUDIO (/api/yt/stream)
+        // 2. STREAM DE AUDIO DIRECTO (/api/yt/stream)
         if (pathname === '/api/yt/stream') {
           const id = url.searchParams.get('id');
           if (!id) {
             return new Response(JSON.stringify({ error: 'ID requerido' }), { status: 400, headers: corsHeaders });
           }
 
-          // A) Cobalt API Audio Extractor (Alta Fidelidad sin bloqueos)
-          const cobaltEndpoints = [
-            'https://api.cobalt.tools/',
-            'https://cobalt-api.kwiatekm.pl/',
-            'https://cobalt.api.hyper.lol/'
-          ];
-
-          for (const endpoint of cobaltEndpoints) {
-            try {
-              const controller = new AbortController();
-              const timeout = setTimeout(() => controller.abort(), 3500);
-              const cobaltRes = await fetch(endpoint, {
-                method: 'POST',
-                signal: controller.signal,
-                headers: {
-                  'Accept': 'application/json',
-                  'Content-Type': 'application/json',
-                  'User-Agent': 'Mozilla/5.0'
-                },
-                body: JSON.stringify({
-                  url: `https://www.youtube.com/watch?v=${id}`,
-                  downloadMode: 'audio',
-                  audioFormat: 'mp3'
-                })
-              });
-              clearTimeout(timeout);
-
-              if (cobaltRes.ok) {
-                const cData = await cobaltRes.json();
-                if (cData && (cData.url || cData.audio)) {
-                  const audioUrl = cData.url || cData.audio;
-                  return new Response(JSON.stringify({
-                    url: `/api/yt/proxy?url=${encodeURIComponent(audioUrl)}`,
-                    directUrl: audioUrl,
-                    provider: 'cobalt'
-                  }), { headers: corsHeaders });
-                }
-              }
-            } catch (e) {}
-          }
-
-          // B) Red Invidious / Piped con streaming proxy
-          const streamApis = [
-            `https://inv.tux.pizza/api/v1/videos/${id}`,
-            `https://invidious.jing.rocks/api/v1/videos/${id}`,
-            `https://invidious.nerdvpn.de/api/v1/videos/${id}`,
-            `https://pipedapi.leptons.xyz/streams/${id}`,
-            `https://pipedapi.kavin.rocks/streams/${id}`
-          ];
-
-          for (const api of streamApis) {
-            try {
-              const controller = new AbortController();
-              const timeout = setTimeout(() => controller.abort(), 3000);
-              const res = await fetch(api, {
-                signal: controller.signal,
-                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-              });
-              clearTimeout(timeout);
-
-              if (res.ok) {
-                const data = await res.json();
-
-                // Formato Piped
-                if (data.audioStreams && data.audioStreams.length > 0) {
-                  const best = data.audioStreams.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
-                  if (best && best.url) {
-                    return new Response(JSON.stringify({
-                      url: `/api/yt/proxy?url=${encodeURIComponent(best.url)}`,
-                      directUrl: best.url,
-                      bitrate: best.bitrate,
-                      mimeType: best.mimeType,
-                      title: data.title,
-                      artist: data.uploader
-                    }), { headers: corsHeaders });
-                  }
-                }
-
-                // Formato Invidious
-                if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
-                  const audioFormats = data.adaptiveFormats.filter(f => f.url && (f.type?.startsWith('audio/') || f.mimeType?.startsWith('audio/')));
-                  if (audioFormats.length > 0) {
-                    const best = audioFormats.sort((a, b) => (parseInt(b.bitrate) || 0) - (parseInt(a.bitrate) || 0))[0];
-                    if (best && best.url) {
-                      return new Response(JSON.stringify({
-                        url: `/api/yt/proxy?url=${encodeURIComponent(best.url)}`,
-                        directUrl: best.url,
-                        bitrate: best.bitrate,
-                        mimeType: best.type || best.mimeType,
-                        title: data.title,
-                        artist: data.author
-                      }), { headers: corsHeaders });
-                    }
-                  }
-                }
-              }
-            } catch (err) {}
-          }
-
-          // C) Fallback a YouTube Player API
+          // A) YouTube TVHTML5_SIMPLY_EMBEDDED_PLAYER (Directo de YouTube sin bloqueos de IP)
           try {
             const ytPlayerRes = await fetch('https://www.youtube.com/youtubei/v1/player', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+              },
+              body: JSON.stringify({
+                context: {
+                  client: {
+                    clientName: 'TVHTML5_SIMPLY_EMBEDDED_PLAYER',
+                    clientVersion: '2.0',
+                    clientScreen: 'EMBED',
+                    hl: 'es',
+                    gl: 'US'
+                  },
+                  thirdParty: {
+                    embedUrl: 'https://www.youtube.com'
+                  }
+                },
+                videoId: id,
+                playbackContext: {
+                  contentPlaybackContext: {
+                    html5Preference: 'HTML5_PREF_WANTS'
+                  }
+                }
+              })
+            });
+
+            if (ytPlayerRes.ok) {
+              const playerData = await ytPlayerRes.json();
+              const streamingData = playerData.streamingData;
+              if (streamingData) {
+                const allFormats = [
+                  ...(streamingData.adaptiveFormats || []),
+                  ...(streamingData.formats || [])
+                ];
+
+                const audioFormats = allFormats.filter(f => f.url && (f.mimeType?.startsWith('audio/') || f.audioQuality));
+                if (audioFormats.length > 0) {
+                  const best = audioFormats.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+                  return new Response(JSON.stringify({
+                    url: `/api/yt/proxy?url=${encodeURIComponent(best.url)}`,
+                    directUrl: best.url,
+                    bitrate: best.bitrate,
+                    mimeType: best.mimeType,
+                    title: playerData.videoDetails?.title || '',
+                    artist: playerData.videoDetails?.author || ''
+                  }), { headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=3600' } });
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('TVHTML5 player fetch failed:', e);
+          }
+
+          // B) YouTube ANDROID_VR Client
+          try {
+            const vrPlayerRes = await fetch('https://www.youtube.com/youtubei/v1/player', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -295,18 +214,56 @@ export default {
               })
             });
 
-            if (ytPlayerRes.ok) {
-              const playerData = await ytPlayerRes.json();
+            if (vrPlayerRes.ok) {
+              const playerData = await vrPlayerRes.json();
               const formats = playerData?.streamingData?.adaptiveFormats || [];
               const audioFormat = formats.find(f => f.url && f.mimeType?.startsWith('audio/'));
               if (audioFormat && audioFormat.url) {
                 return new Response(JSON.stringify({
                   url: `/api/yt/proxy?url=${encodeURIComponent(audioFormat.url)}`,
-                  directUrl: audioFormat.url
-                }), { headers: corsHeaders });
+                  directUrl: audioFormat.url,
+                  bitrate: audioFormat.bitrate
+                }), { headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=3600' } });
               }
             }
           } catch (e) {}
+
+          // C) Instancias Invidious activas
+          const invidiousInstances = [
+            `https://yt.artemislena.eu/api/v1/videos/${id}`,
+            `https://invidious.flokinet.to/api/v1/videos/${id}`,
+            `https://iv.ggtyler.dev/api/v1/videos/${id}`,
+            `https://invidious.protokolla.fi/api/v1/videos/${id}`
+          ];
+
+          for (const api of invidiousInstances) {
+            try {
+              const controller = new AbortController();
+              const timeout = setTimeout(() => controller.abort(), 3000);
+              const res = await fetch(api, { signal: controller.signal, headers: { 'User-Agent': 'Mozilla/5.0' } });
+              clearTimeout(timeout);
+
+              if (res.ok) {
+                const data = await res.json();
+                if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
+                  const audioFormats = data.adaptiveFormats.filter(f => f.url && (f.type?.startsWith('audio/') || f.mimeType?.startsWith('audio/')));
+                  if (audioFormats.length > 0) {
+                    const best = audioFormats.sort((a, b) => (parseInt(b.bitrate) || 0) - (parseInt(a.bitrate) || 0))[0];
+                    if (best && best.url) {
+                      return new Response(JSON.stringify({
+                        url: `/api/yt/proxy?url=${encodeURIComponent(best.url)}`,
+                        directUrl: best.url,
+                        bitrate: best.bitrate,
+                        mimeType: best.type || best.mimeType,
+                        title: data.title,
+                        artist: data.author
+                      }), { headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=3600' } });
+                    }
+                  }
+                }
+              }
+            } catch (err) {}
+          }
 
           return new Response(JSON.stringify({ error: 'No se pudo resolver el stream de audio' }), { status: 502, headers: corsHeaders });
         }

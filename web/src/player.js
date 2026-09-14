@@ -80,7 +80,8 @@ class AudioPlayer {
           modestbranding: 1,
           playsinline: 1,
           enablejsapi: 1,
-          origin: window.location.origin
+          widget_referrer: 'https://www.youtube.com',
+          origin: 'https://www.youtube.com'
         },
         events: {
           onReady: () => {
